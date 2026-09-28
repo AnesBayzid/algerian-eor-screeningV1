@@ -1,0 +1,17 @@
+[
+  "Lithology",
+  "Permeability",
+  "Porosity",
+  "Oil_Viscosity",
+  "Temperature",
+  "API_Gravity",
+  "Pass_Miscible",
+  "Pass_Immiscible",
+  "Pass_WAG",
+  "Pass_Chemical",
+  "Pass_Hybrid",
+  "Pass_Waterflood",
+  "Mobility_Proxy",
+  "RQI",
+  "FZI"
+]
