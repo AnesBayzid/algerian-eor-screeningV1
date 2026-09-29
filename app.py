@@ -181,8 +181,19 @@ def apply_language_css(language: str) -> None:
         .eor-brand h1 {{ margin:0; font-size:1.7rem; }}
 
         /* Hide the Streamlit Community Cloud "View source on GitHub" icon.
-           Kept as several selectors since the exact markup can vary by
-           Streamlit version; harmless if some don't match anything. */
+           The icon's own class (epm40z21) is specific to its background-image,
+           so it's more reliable than trying to match a href. The :has()
+           selector then hides the surrounding button, not just the icon,
+           so no empty clickable gap is left behind. If Streamlit rebuilds
+           the app with a new version, this class name can change and this
+           rule may need to be re-pointed at the new one (right-click the
+           icon → Inspect, and swap the class below). */
+        div[data-testid="stToolbarActionButtonIcon"].epm40z21 {{
+            display: none !important;
+        }}
+        :has(> div[data-testid="stToolbarActionButtonIcon"].epm40z21) {{
+            display: none !important;
+        }}
         [data-testid="stToolbar"] a[href*="github.com"],
         [data-testid="stToolbarActions"] a[href*="github.com"],
         a[href*="github.com"][title*="GitHub"],
