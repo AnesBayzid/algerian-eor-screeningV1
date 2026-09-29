@@ -180,6 +180,23 @@ def apply_language_css(language: str) -> None:
         .dz-flag-img {{ width:42px; height:28px; object-fit:cover; border:1px solid #777; border-radius:2px; display:block; }}
         .eor-brand h1 {{ margin:0; font-size:1.7rem; }}
 
+        /* Hide the Streamlit Community Cloud "View source on GitHub" button.
+           This button is sent to the page by the Community Cloud host
+           itself (not part of the app's own toolbar), so client.toolbarMode
+           has no effect on it - CSS is the only lever available here.
+           The icon (epm40z21) sits two levels deep inside the button, not
+           as a direct child, so this must use a plain descendant match
+           (":has(div...)"), not a direct-child match (":has(> div...)"),
+           or it silently fails to match the button at all.
+           If a future Streamlit/Community Cloud update changes this hashed
+           class name, re-inspect the icon (element picker -> Copy element)
+           and swap epm40z21 below for the new one. */
+        button[data-testid="stBaseButton-header"]:has(
+            div[data-testid="stToolbarActionButtonIcon"].epm40z21
+        ) {{
+            display: none !important;
+        }}
+
         </style>""",
         unsafe_allow_html=True,
     )
