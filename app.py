@@ -19,7 +19,7 @@ import math
 import os
 import warnings
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -47,6 +47,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
+
+import ui_kit as ui
 
 st.set_page_config(
     page_title="Algerian EOR Screening Platform",
@@ -103,6 +105,17 @@ TRANSLATIONS = {
         "fallback_warning": "No trained model files were found. Results are heuristic placeholders, not validated model predictions.",
         "probability": "Probability", "eor_method": "EOR Method", "combined": "Combined Technical Confidence",
         "pressure_note": "Depth and pressure are displayed and normalized, but current classical rules do not yet apply formation-pressure or MMP correlations.",
+        "recommendation": "Screening Verdict", "confidence": "Combined technical confidence",
+        "reservoir_properties": "Reservoir Properties", "advanced_inputs": "Depth, Pressure & MMP",
+        "fluid_properties": "Fluid Properties", "optional": "optional", "normalized": "Normalized",
+        "depth_unit": "Depth unit", "pressure_unit": "Pressure unit", "temperature_unit": "Temperature unit",
+        "viscosity_unit": "Viscosity unit", "gravity_unit": "Gravity unit",
+        "ml_engine_note": "These probabilities come from Engine B only; Engine A has not modified them.",
+        "combined_note": "Engine A rule status is now applied to the standalone Engine B probabilities.",
+        "screening_caption": "PASS = ideal range, MARGINAL = near boundary, FAIL = outside the screening range.",
+        "method_count": "6 EOR methods screened", "dual_engine": "Dual engine",
+        "engine1_tab": "Engine 1: Classical",
+        "model_confidence": "Model probability distribution",
     },
     "fr": {
         "title": "Suite algérienne d'aide à la décision EOR",
@@ -123,6 +136,18 @@ TRANSLATIONS = {
         "fallback_warning": "Aucun modèle entraîné trouvé. Les résultats sont heuristiques et non validés.",
         "probability": "Probabilité", "eor_method": "Méthode EOR", "combined": "Confiance technique combinée",
         "pressure_note": "La profondeur et la pression sont normalisées, mais les règles actuelles n'appliquent pas encore les corrélations de pression de formation ou de MMP.",
+        "recommendation": "Verdict de criblage", "confidence": "Confiance technique combinée",
+        "reservoir_properties": "Propriétés du réservoir", "advanced_inputs": "Profondeur, pression et MMP",
+        "fluid_properties": "Propriétés du fluide", "optional": "optionnel", "normalized": "Normalisé",
+        "depth_unit": "Unité de profondeur", "pressure_unit": "Unité de pression",
+        "temperature_unit": "Unité de température", "viscosity_unit": "Unité de viscosité",
+        "gravity_unit": "Unité de gravité",
+        "ml_engine_note": "Ces probabilités proviennent uniquement du moteur B ; le moteur A ne les a pas modifiées.",
+        "combined_note": "Le statut des règles du moteur A est maintenant appliqué aux probabilités du moteur B seul.",
+        "screening_caption": "PASS = plage idéale, MARGINAL = proche de la limite, FAIL = hors plage.",
+        "method_count": "6 méthodes EOR évaluées", "dual_engine": "Double moteur",
+        "engine1_tab": "Moteur 1 : Classique",
+        "model_confidence": "Distribution de probabilité du modèle",
     },
     "ar": {
         "title": "منصة دعم قرار الاستخلاص المعزز للنفط في الجزائر",
@@ -143,6 +168,18 @@ TRANSLATIONS = {
         "fallback_warning": "لم يتم العثور على نموذج مدرب. النتائج تقريبية وليست تنبؤات نموذج معتمد.",
         "probability": "الاحتمال", "eor_method": "طريقة EOR", "combined": "الثقة التقنية المجمعة",
         "pressure_note": "تم توحيد العمق والضغط، لكن القواعد الحالية لا تطبق بعد علاقات ضغط المكمن أو MMP.",
+        "recommendation": "حكم الفحص", "confidence": "الثقة التقنية المجمعة",
+        "reservoir_properties": "خصائص المكمن", "advanced_inputs": "العمق والضغط و MMP",
+        "fluid_properties": "خصائص السائل", "optional": "اختياري", "normalized": "القيم الموحّدة",
+        "depth_unit": "وحدة العمق", "pressure_unit": "وحدة الضغط",
+        "temperature_unit": "وحدة الحرارة", "viscosity_unit": "وحدة اللزوجة",
+        "gravity_unit": "وحدة الكثافة",
+        "ml_engine_note": "هذه الاحتمالات تأتي من المحرك B فقط؛ لم يعدّلها المحرك A.",
+        "combined_note": "تم الآن تطبيق حالة قواعد المحرك A على احتمالات المحرك B وحده.",
+        "screening_caption": "PASS = النطاق المثالي، MARGINAL = قريب من الحد، FAIL = خارج النطاق.",
+        "method_count": "6 طرق EOR مقيّمة", "dual_engine": "محركان",
+        "engine1_tab": "المحرك 1: الكلاسيكي",
+        "model_confidence": "توزيع احتمال النموذج",
     },
 }
 
@@ -172,34 +209,8 @@ def load_flag_image_base64(filename: str = "algeria-flag.png") -> str | None:
 
 
 def apply_language_css(language: str) -> None:
-    direction = "rtl" if language == "ar" else "ltr"
-    st.markdown(
-        f"""<style>
-        html, body, [data-testid="stAppViewContainer"] {{ direction: {direction}; }}
-        .eor-brand {{ display:flex; align-items:center; gap:12px; margin-bottom:12px; }}
-        .dz-flag-img {{ width:42px; height:28px; object-fit:cover; border:1px solid #777; border-radius:2px; display:block; }}
-        .eor-brand h1 {{ margin:0; font-size:1.7rem; }}
-
-        /* Hide the Streamlit Community Cloud "View source on GitHub" button.
-           This button is sent to the page by the Community Cloud host
-           itself (not part of the app's own toolbar), so client.toolbarMode
-           has no effect on it - CSS is the only lever available here.
-           The icon (epm40z21) sits two levels deep inside the button, not
-           as a direct child, so this must use a plain descendant match
-           (":has(div...)"), not a direct-child match (":has(> div...)"),
-           or it silently fails to match the button at all.
-           If a future Streamlit/Community Cloud update changes this hashed
-           class name, re-inspect the icon (element picker -> Copy element)
-           and swap epm40z21 below for the new one. */
-        button[data-testid="stBaseButton-header"]:has(
-            div[data-testid="stToolbarActionButtonIcon"].epm40z21
-        ) {{
-            display: none !important;
-        }}
-
-        </style>""",
-        unsafe_allow_html=True,
-    )
+    """Install the design system and the writing direction for the active language."""
+    ui.mount(language)
 
 
 def convert_to_field_units(depth: float, depth_unit: str, pressure: float, pressure_unit: str,
@@ -794,27 +805,27 @@ def predict_ml_system(user_input: Dict[str, Any]) -> Dict[str, Any]:
 # 7. Dashboard visuals
 # ---------------------------------------------------------------------------
 
-def plot_probability_chart(probabilities: Dict[str, float], title: str) -> go.Figure:
-    labels = list(probabilities.keys())
-    values = list(probabilities.values())
-    fig = go.Figure(data=[go.Bar(x=labels, y=values, marker_color="royalblue")])
-    fig.update_layout(
-        title=title,
-        xaxis_title="EOR Method",
-        yaxis_title="Probability",
-        template="plotly_white",
-        height=420,
-        margin=dict(l=20, r=20, t=40, b=80),
-    )
-    return fig
+METHOD_ICONS: Dict[str, str] = {
+    "Miscible Gas Injection": "drop",
+    "Immiscible Gas Injection": "waves",
+    "WAG Injection": "merge",
+    "Chemical EOR": "flask",
+    "Hybrid Gas-Chemical": "target",
+    "Secondary Waterflooding": "droplet",
+}
+
+
+def plot_probability_chart(probabilities: Dict[str, float], highlight: Optional[str] = None) -> go.Figure:
+    """Horizontal probability bars in the design-system palette."""
+    return ui.probability_figure(probabilities, highlight=highlight)
 
 
 # ---------------------------------------------------------------------------
 # 8. Main app layout
 # ---------------------------------------------------------------------------
 
-def render_kpi_cards(inputs: Dict[str, Any]) -> None:
-    """Render key physical proxy metrics as KPI cards."""
+def physical_proxies(inputs: Dict[str, Any]) -> Dict[str, float]:
+    """Compute the domain proxy metrics shown above the screening engines."""
     record = {
         "Permeability": safe_float(inputs.get("Permeability"), 120.0),
         "Porosity": normalize_percentage_to_fraction(safe_float(inputs.get("Porosity"), 18.0)),
@@ -824,11 +835,243 @@ def render_kpi_cards(inputs: Dict[str, Any]) -> None:
     rqi = 0.0314 * math.sqrt(record["Permeability"] / (record["Porosity"] + 1e-6))
     phi_z = record["Porosity"] / (1.0 - record["Porosity"] + 1e-6)
     fzi = rqi / (phi_z + 1e-6)
+    return {"Mobility Proxy": mobility, "RQI": rqi, "FZI": fzi}
 
-    kpi_cols = st.columns(3)
-    kpi_cols[0].metric("Mobility Proxy", f"{mobility:.3f}")
-    kpi_cols[1].metric("RQI", f"{rqi:.3f}")
-    kpi_cols[2].metric("FZI", f"{fzi:.3f}")
+
+def render_kpi_cards(inputs: Dict[str, Any]) -> None:
+    """Render the physical proxy metrics as responsive KPI cards."""
+    proxies = physical_proxies(inputs)
+    hints = {
+        "Mobility Proxy": "k / µ",
+        "RQI": "0.0314 · √(k/φ)",
+        "FZI": "RQI / φz",
+    }
+    icons = {"Mobility Proxy": "waves", "RQI": "trend", "FZI": "grid"}
+    ui.render(
+        ui.kpi_grid(
+            [
+                {
+                    "icon": icons[label],
+                    "label": label,
+                    "value": f"{value:.3f}",
+                    "hint": hints[label],
+                }
+                for label, value in proxies.items()
+            ]
+        )
+    )
+
+
+def render_language_selector() -> str:
+    with st.sidebar:
+        selected = st.pills(
+            "Language / Langue / اللغة",
+            list(LANGUAGES),
+            default=list(LANGUAGES)[0],
+            selection_mode="single",
+            label_visibility="collapsed",
+            width="stretch",
+        )
+    return LANGUAGES[selected or list(LANGUAGES)[0]]
+
+
+def render_input_panel(language: str) -> Dict[str, Any]:
+    """Collect reservoir inputs in a mobile-first, progressively disclosed form."""
+    with st.sidebar:
+        ui.render(ui.section_header("sliders", t(language, "inputs")))
+
+        with st.expander(t(language, "guide"), expanded=False):
+            st.write(t(language, "guide_text"))
+            st.dataframe(GEOLOGICAL_LITHOLOGY_GUIDE, hide_index=True, width="stretch")
+
+        ui.render(ui.group_label("layers", t(language, "reservoir_properties")))
+        lithology_options = [
+            "Carbonate", "Carbonate / Dolomite", "Carbonate / Limestone",
+            "Sandstone", "Sandstone / Quartzite", "Mixed Clastic", "Unknown",
+        ]
+        lithology = st.selectbox(t(language, "lithology"), lithology_options, index=0)
+        permeability = st.number_input(
+            f"{t(language, 'permeability')} (mD)", value=120.0, min_value=0.1, step=1.0
+        )
+        porosity_pct = st.number_input(
+            f"{t(language, 'porosity')} (%)", value=18.0, min_value=0.1, max_value=60.0, step=0.1
+        )
+
+        ui.render(ui.group_label("droplet", t(language, "fluid_properties")))
+        temperature_unit = st.selectbox(t(language, "temperature_unit"), ["°C", "°F"])
+        temperature = st.number_input(
+            f"{t(language, 'temperature')} ({temperature_unit})",
+            value=82.22 if temperature_unit == "°C" else 180.0,
+            min_value=-50.0,
+            step=1.0,
+        )
+        viscosity_unit = st.selectbox(t(language, "viscosity_unit"), ["cP", "mPa·s"])
+        viscosity = st.number_input(
+            f"{t(language, 'viscosity')} ({viscosity_unit})",
+            value=8.0, min_value=0.001, step=0.1,
+        )
+        gravity_unit = st.selectbox(t(language, "gravity_unit"), ["°API", "Specific Gravity (SG)"])
+        gravity = st.number_input(
+            f"{t(language, 'gravity')} ({gravity_unit})",
+            value=32.0 if gravity_unit == "°API" else 0.865,
+            min_value=0.01,
+            step=0.1,
+        )
+
+        with st.expander(t(language, "advanced_inputs"), expanded=False):
+            depth_unit = st.selectbox(t(language, "depth_unit"), ["m", "ft"])
+            depth = st.number_input(
+                f"{t(language, 'depth')} ({depth_unit})",
+                value=1828.8 if depth_unit == "m" else 6000.0, min_value=1.0, step=100.0,
+            )
+            pressure_unit = st.selectbox(t(language, "pressure_unit"), ["bar", "psi", "MPa"])
+            pressure = st.number_input(
+                f"{t(language, 'pressure')} ({pressure_unit})",
+                value=172.37 if pressure_unit == "bar" else (2500.0 if pressure_unit == "psi" else 17.24),
+                min_value=0.1, step=10.0,
+            )
+            mmp = st.number_input(
+                f"MMP ({pressure_unit}, {t(language, 'optional')})",
+                value=0.0, min_value=0.0,
+                step=5.0 if pressure_unit == "bar" else 50.0,
+                help="Enter 0 when MMP is unavailable; depth will be used only as a proxy for miscible-gas screening.",
+            )
+
+    mmp_psi = mmp if pressure_unit == "psi" else mmp * {"bar": 14.5037738, "MPa": 145.037738}.get(pressure_unit, 1.0)
+    field_units = convert_to_field_units(
+        depth, depth_unit, pressure, pressure_unit, temperature, temperature_unit,
+        viscosity, viscosity_unit, gravity, gravity_unit,
+    )
+    return {
+        "Lithology": lithology,
+        "Permeability": permeability,
+        "Porosity": porosity_pct,
+        "Oil_Viscosity": field_units["Oil_Viscosity"],
+        "Temperature": field_units["Temperature"],
+        "API_Gravity": field_units["API_Gravity"],
+        "Depth_ft": field_units["Depth_ft"],
+        "Pressure_psi": field_units["Pressure_psi"],
+        "MMP_psi": mmp_psi,
+    }
+
+
+def render_header(language: str) -> None:
+    ui.render(
+        ui.hero_header(
+            t(language, "title"),
+            t(language, "subtitle"),
+            load_flag_image_base64("algeria-flag.png"),
+            [
+                {"icon": "scales", "text": t(language, "classical")},
+                {"icon": "cpu", "text": t(language, "ml")},
+                {"icon": "filter", "text": t(language, "method_count")},
+            ],
+        )
+    )
+
+
+def render_engine_one(language: str, classical_results: Dict[str, Dict[str, Any]]) -> None:
+    ui.render(ui.section_header("scales", t(language, "engine1_title")))
+    st.caption(t(language, "screening_caption"))
+    ui.render(ui.callout(t(language, "engine1_disclaimer"), "info", "shield"))
+    for method_name, result in classical_results.items():
+        ui.render(
+            ui.status_card(
+                method_name,
+                result["status"],
+                result["violations"],
+                icon_name=METHOD_ICONS.get(method_name, "flask"),
+                violations_label=t(language, "violations"),
+            )
+        )
+        with st.expander(f"{t(language, 'method_details')}: {method_name}"):
+            ui.render(ui.parameter_table(result["parameters"]))
+
+
+def render_engine_two(language: str, model_result: Dict[str, Any]) -> None:
+    ui.render(ui.section_header("cpu", t(language, "ml")))
+    if model_result["mode"] == "trained":
+        ui.render(
+            ui.callout(
+                "Real ensemble models trained from Screening_Original.xlsx are active.", "ok", "check"
+            )
+        )
+    elif model_result.get("warning"):
+        ui.render(ui.callout(t(language, "fallback_warning"), "warn", "alert"))
+
+    for model_name, info in model_result["results"].items():
+        ui.render(ui.model_card(model_name, info["prediction"], t(language, "predicted")))
+        ui.render(ui.column_header(t(language, "eor_method"), t(language, "probability")))
+        ui.show_figure(
+            plot_probability_chart(info["probabilities"], highlight=info["prediction"]),
+            key=f"model-{model_name}",
+        )
+
+
+def consensus_scores(model_result: Dict[str, Any]) -> Dict[str, float]:
+    """Mean probability of every method across the available ML models."""
+    results = model_result["results"]
+    return {
+        method: float(
+            np.mean([item["probabilities"].get(method, 0.0) for item in results.values()])
+        )
+        for method in EOR_CLASSES
+    }
+
+
+def combined_ranking(
+    scores: Dict[str, float], classical_results: Dict[str, Dict[str, Any]]
+) -> List[tuple]:
+    """Engine A rule status weighted onto the standalone Engine B probabilities."""
+    combined = []
+    for method_name in EOR_CLASSES:
+        status = classical_results[method_name]["status"]
+        weight = {"PASS": 1.0, "MARGINAL": 0.7, "FAIL": 0.2}[status]
+        combined.append((method_name, scores[method_name] * weight, status))
+    combined.sort(key=lambda item: item[1], reverse=True)
+    return combined
+
+
+def render_consensus(
+    language: str,
+    combined: List[tuple],
+    ml_only_rank: List[tuple],
+) -> None:
+    ui.render(ui.section_header("target", t(language, "consensus")))
+
+    ui.render(
+        ui.section_header(
+            "cpu", t(language, "ml_only_result"), subtitle=t(language, "ml_engine_note"), sub=True
+        )
+    )
+    ui.render(ui.column_header(t(language, "eor_method"), t(language, "ml_mean")))
+    ui.render(ui.ranking_list([{"method": method, "value": score} for method, score in ml_only_rank]))
+
+    ui.render(
+        ui.section_header(
+            "merge", t(language, "combined_result"), subtitle=t(language, "combined_note"), sub=True
+        )
+    )
+    ui.render(ui.column_header(t(language, "eor_method"), t(language, "combined")))
+    ui.render(
+        ui.ranking_list(
+            [{"method": method, "value": score} for method, score, _ in combined],
+            show_status=True,
+            statuses={method: status for method, _, status in combined},
+        )
+    )
+
+    ui.render(
+        ui.section_header(
+            "chartArea", t(language, "combined"), subtitle=t(language, "screening_caption"), sub=True
+        )
+    )
+    ui.show_figure(
+        plot_probability_chart(
+            {method: score for method, score, _ in combined}, highlight=combined[0][0]
+        ),
+        key="combined-confidence",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -836,123 +1079,57 @@ def render_kpi_cards(inputs: Dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    with st.sidebar:
-        language_name = st.selectbox("Language / Langue / اللغة", list(LANGUAGES), index=0)
-    language = LANGUAGES[language_name]
+    language = render_language_selector()
     apply_language_css(language)
+    input_data = render_input_panel(language)
 
-    flag_b64 = load_flag_image_base64("algeria-flag.png")
-    if flag_b64:
-        flag_html = f"<img class='dz-flag-img' src='data:image/png;base64,{flag_b64}' alt='Algeria flag' />"
-    else:
-        # Fallback if the PNG isn't found next to app.py, so the header
-        # still renders instead of breaking.
-        flag_html = "🇩🇿"
-    st.markdown(
-        f"<div class='eor-brand'>{flag_html}<h1>{t(language, 'title')}</h1></div>",
-        unsafe_allow_html=True,
+    classical_results = classical_screening(
+        input_data["Lithology"],
+        input_data["Permeability"],
+        normalize_percentage_to_fraction(input_data["Porosity"]),
+        input_data["Oil_Viscosity"],
+        input_data["Temperature"],
+        input_data["API_Gravity"],
+        input_data["Depth_ft"],
+        input_data["Pressure_psi"],
+        input_data["MMP_psi"] if input_data["MMP_psi"] > 0 else None,
     )
-    st.caption(t(language, "subtitle"))
-
-    with st.sidebar:
-        st.header(t(language, "inputs"))
-        with st.expander(t(language, "guide"), expanded=False):
-            st.write(t(language, "guide_text"))
-            st.dataframe(GEOLOGICAL_LITHOLOGY_GUIDE, hide_index=True, use_container_width=True)
-
-        lithology_options = ["Carbonate", "Carbonate / Dolomite", "Carbonate / Limestone", "Sandstone", "Sandstone / Quartzite", "Mixed Clastic", "Unknown"]
-        lithology = st.selectbox(t(language, "lithology"), lithology_options, index=0)
-
-        permeability = st.number_input(f"{t(language, 'permeability')} (mD)", value=120.0, min_value=0.1, step=1.0)
-        porosity_pct = st.number_input(f"{t(language, 'porosity')} (%)", value=18.0, min_value=0.1, max_value=60.0, step=0.1)
-
-        depth_unit = st.selectbox(f"{t(language, 'depth')} unit", ["m", "ft"])
-        depth = st.number_input(f"{t(language, 'depth')} ({depth_unit})", value=1828.8 if depth_unit == "m" else 6000.0, min_value=1.0, step=100.0)
-        pressure_unit = st.selectbox(f"{t(language, 'pressure')} unit", ["bar", "psi", "MPa"])
-        pressure = st.number_input(f"{t(language, 'pressure')} ({pressure_unit})", value=172.37 if pressure_unit == "bar" else (2500.0 if pressure_unit == "psi" else 17.24), min_value=0.1, step=10.0)
-        mmp = st.number_input(f"MMP ({pressure_unit}, optional)", value=0.0, min_value=0.0, step=5.0 if pressure_unit == "bar" else 50.0, help="Enter 0 when MMP is unavailable; depth will be used only as a proxy for miscible-gas screening.")
-        mmp_psi = mmp if pressure_unit == "psi" else mmp * {"bar": 14.5037738, "MPa": 145.037738}.get(pressure_unit, 1.0)
-        temperature_unit = st.selectbox(f"{t(language, 'temperature')} unit", ["°C", "°F"])
-        temperature = st.number_input(f"{t(language, 'temperature')} ({temperature_unit})", value=82.22 if temperature_unit == "°C" else 180.0, min_value=-50.0, step=1.0)
-        viscosity_unit = st.selectbox(f"{t(language, 'viscosity')} unit", ["cP", "mPa·s"])
-        viscosity = st.number_input(f"{t(language, 'viscosity')} ({viscosity_unit})", value=8.0, min_value=0.001, step=0.1)
-        gravity_unit = st.selectbox(f"{t(language, 'gravity')} unit", ["°API", "Specific Gravity (SG)"])
-        gravity = st.number_input(f"{t(language, 'gravity')} ({gravity_unit})", value=32.0 if gravity_unit == "°API" else 0.865, min_value=0.01, step=0.1)
-
-    field_units = convert_to_field_units(depth, depth_unit, pressure, pressure_unit, temperature, temperature_unit, viscosity, viscosity_unit, gravity, gravity_unit)
-    input_data = {
-        "Lithology": lithology, "Permeability": permeability, "Porosity": porosity_pct,
-        "Oil_Viscosity": field_units["Oil_Viscosity"], "Temperature": field_units["Temperature"],
-        "API_Gravity": field_units["API_Gravity"], "Depth_ft": field_units["Depth_ft"], "Pressure_psi": field_units["Pressure_psi"],
-    }
-
-    st.subheader(t(language, "proxies"))
-    render_kpi_cards(input_data)
-    st.caption(f"{t(language, 'pressure_note')} Normalized: {field_units['Depth_ft']:.1f} ft | {field_units['Pressure_psi']:.1f} psi | {field_units['Temperature']:.1f} °F | {field_units['Oil_Viscosity']:.3f} cP | {field_units['API_Gravity']:.2f} °API")
-
-    classical_results = classical_screening(lithology, permeability, normalize_percentage_to_fraction(porosity_pct), field_units["Oil_Viscosity"], field_units["Temperature"], field_units["API_Gravity"], field_units["Depth_ft"], field_units["Pressure_psi"], mmp_psi if mmp_psi > 0 else None)
     model_result = predict_ml_system(input_data)
-    tab1, tab2, tab3 = st.tabs([t(language, "engine1_title"), t(language, "ml"), t(language, "consensus")])
+    scores = consensus_scores(model_result)
+    ml_only_rank = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    combined = combined_ranking(scores, classical_results)
 
-    with tab1:
-        st.subheader(t(language, "engine1_title"))
-        st.caption(t(language, "screening_caption"))
-        st.info(t(language, "engine1_disclaimer"))
-        for method_name, result in classical_results.items():
-            status = result["status"]
-            color = {"PASS": "#2ca02c", "MARGINAL": "#ff7f0e", "FAIL": "#d62728"}.get(status, "#4c78a8")
-            st.markdown(f"<h4 style='color:{color};'>{method_name}: {status}</h4>", unsafe_allow_html=True)
-            if result["violations"]:
-                st.warning(f"{t(language, 'violations')}: {', '.join(result['violations'])}")
-            with st.expander(f"{t(language, 'method_details')}: {method_name}"):
-                st.dataframe(pd.DataFrame([{"Parameter": k, "Status": v} for k, v in result["parameters"].items()]), hide_index=True, use_container_width=True)
+    render_header(language)
+    ui.render(ui.section_header("trend", t(language, "proxies")))
+    render_kpi_cards(input_data)
+    ui.render(ui.callout(t(language, "pressure_note"), "info", "shield"))
+    st.caption(
+        f"{t(language, 'normalized')}: {input_data['Depth_ft']:.1f} ft | "
+        f"{input_data['Pressure_psi']:.1f} psi | {input_data['Temperature']:.1f} °F | "
+        f"{input_data['Oil_Viscosity']:.3f} cP | {input_data['API_Gravity']:.2f} °API"
+    )
 
-    with tab2:
-        st.subheader(t(language, "ml"))
-        if model_result["mode"] == "trained":
-            st.success("Real ensemble models trained from Screening_Original.xlsx are active.")
-        elif model_result.get("warning"):
-            st.warning(t(language, "fallback_warning"))
-        for model_name, info in model_result["results"].items():
-            st.markdown(f"### {model_name}")
-            st.metric(t(language, "predicted"), info["prediction"])
-            st.plotly_chart(plot_probability_chart(info["probabilities"], f"{t(language, 'probability')} - {model_name}"), use_container_width=True)
-
-    with tab3:
-        st.subheader(t(language, "consensus"))
-        results = model_result["results"]
-        consensus_scores = {method: float(np.mean([item["probabilities"].get(method, 0.0) for item in results.values()])) for method in EOR_CLASSES}
-
-        # Display Engine B before applying any Engine A rule weighting.
-        st.markdown(f"### {t(language, 'ml_only_result')}")
-        st.caption("These probabilities come from Engine B only; Engine A has not modified them.")
-        ml_only_rank = sorted(consensus_scores.items(), key=lambda item: item[1], reverse=True)
-        st.dataframe(
-            pd.DataFrame([
-                {"Rank": index, "EOR Method": method, t(language, "ml_mean"): f"{score:.1%}"}
-                for index, (method, score) in enumerate(ml_only_rank, start=1)
-            ]),
-            hide_index=True,
-            use_container_width=True,
+    top_method, top_score, top_status = combined[0]
+    ui.render(
+        ui.verdict_card(
+            top_method,
+            top_score,
+            top_status,
+            t(language, "recommendation"),
+            hint=t(language, "screening_caption"),
+            icon_name="target",
         )
-        ml_only_fig = go.Figure(data=[go.Bar(x=[item[0] for item in ml_only_rank], y=[item[1] for item in ml_only_rank], marker_color="#3366cc")])
-        ml_only_fig.update_layout(title=t(language, "ml_only_result"), xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"), template="plotly_white", height=380, margin=dict(l=20, r=20, t=40, b=100))
-        st.plotly_chart(ml_only_fig, use_container_width=True)
+    )
 
-        st.markdown(f"### {t(language, 'combined_result')}")
-        st.caption("Engine A rule status is now applied to the standalone Engine B probabilities.")
-        combined_rank = []
-        for method_name in EOR_CLASSES:
-            status = classical_results[method_name]["status"]
-            weight = {"PASS": 1.0, "MARGINAL": 0.7, "FAIL": 0.2}[status]
-            combined_rank.append((method_name, consensus_scores[method_name] * weight, status))
-        combined_rank.sort(key=lambda item: item[1], reverse=True)
-        for method_name, score, status in combined_rank:
-            color = {"PASS": "#2ca02c", "MARGINAL": "#ff7f0e", "FAIL": "#d62728"}[status]
-            st.markdown(f"<div style='display:flex;align-items:center;gap:12px;margin:8px 0;'><b style='width:220px'>{method_name}</b><span style='width:90px;background:{color};color:white;padding:4px;border-radius:6px;text-align:center'>{status}</span><div style='flex:1;background:#e9ecef;height:20px'><div style='width:{score * 100:.1f}%;height:100%;background:{color}'></div></div><b style='width:60px;text-align:right'>{score * 100:.1f}%</b></div>", unsafe_allow_html=True)
-        fig = go.Figure(data=[go.Bar(x=[x[0] for x in combined_rank], y=[x[1] for x in combined_rank])])
-        fig.update_layout(title=t(language, "combined"), xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"), template="plotly_white", height=420, margin=dict(l=20, r=20, t=40, b=100))
-        st.plotly_chart(fig, use_container_width=True)
+    tab1, tab2, tab3 = st.tabs(
+        [t(language, "engine1_tab"), t(language, "ml"), t(language, "consensus")]
+    )
+    with tab1:
+        render_engine_one(language, classical_results)
+    with tab2:
+        render_engine_two(language, model_result)
+    with tab3:
+        render_consensus(language, combined, ml_only_rank)
 
 
 if __name__ == "__main__":
