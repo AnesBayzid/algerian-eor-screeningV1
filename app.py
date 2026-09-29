@@ -158,20 +158,17 @@ def t(language: str, key: str) -> str:
     return TRANSLATIONS.get(language, TRANSLATIONS["en"]).get(key, key)
 
 
-@st.cache_data(show_spinner=False)
-def load_flag_data_uri() -> str:
-    flag_path = Path(__file__).resolve().parent / "algeria-flag.png"
-    if not flag_path.exists():
-        return ""
-    encoded = base64.b64encode(flag_path.read_bytes()).decode("ascii")
-    return f"data:image/png;base64,{encoded}"
+@st.cache_data
+def load_flag_image_base64(filename: str = "algeria-flag.png") -> str | None:
+    """Read the flag PNG from the repo root and return it as a base64 string.
 
-
-def build_flag_html() -> str:
-    data_uri = load_flag_data_uri()
-    if data_uri:
-        return f"<img class='dz-flag' src='{data_uri}' alt='Algeria' />"
-    return "<div class='dz-flag-fallback'></div>"
+    Returns None if the file isn't found, so the caller can fall back
+    gracefully instead of breaking the header layout.
+    """
+    path = Path(__file__).resolve().parent / filename
+    if not path.exists():
+        return None
+    return base64.b64encode(path.read_bytes()).decode("utf-8")
 
 
 def apply_language_css(language: str) -> None:
@@ -180,12 +177,18 @@ def apply_language_css(language: str) -> None:
         f"""<style>
         html, body, [data-testid="stAppViewContainer"] {{ direction: {direction}; }}
         .eor-brand {{ display:flex; align-items:center; gap:12px; margin-bottom:12px; }}
-        .dz-flag {{ width:42px; height:28px; border:1px solid #777; border-radius:3px; object-fit:cover; display:block; }}
-        .dz-flag-fallback {{ width:42px; height:28px; border:1px solid #777; background:linear-gradient(90deg,#006233 0 50%,#fff 50%); position:relative; overflow:hidden; }}
-        .dz-flag-fallback:before {{ content:''; position:absolute; width:14px; height:14px; border-radius:50%; background:#d21034; left:15px; top:6px; }}
-        .dz-flag-fallback:after {{ content:''; position:absolute; width:14px; height:14px; border-radius:50%; background:#fff; left:19px; top:4px; box-shadow:6px 7px 0 -4px #d21034; }}
+        .dz-flag-img {{ width:42px; height:28px; object-fit:cover; border:1px solid #777; border-radius:2px; display:block; }}
         .eor-brand h1 {{ margin:0; font-size:1.7rem; }}
-        header a[href*="github.com"], header [data-testid*="github" i] {{ display:none !important; }}
+
+        /* Hide the Streamlit Community Cloud "View source on GitHub" icon.
+           Kept as several selectors since the exact markup can vary by
+           Streamlit version; harmless if some don't match anything. */
+        [data-testid="stToolbar"] a[href*="github.com"],
+        [data-testid="stToolbarActions"] a[href*="github.com"],
+        a[href*="github.com"][title*="GitHub"],
+        a[href*="github.com"][aria-label*="GitHub"] {{
+            display: none !important;
+        }}
         </style>""",
         unsafe_allow_html=True,
     )
@@ -830,8 +833,15 @@ def main() -> None:
     language = LANGUAGES[language_name]
     apply_language_css(language)
 
+    flag_b64 = load_flag_image_base64("algeria-flag.png")
+    if flag_b64:
+        flag_html = f"<img class='dz-flag-img' src='data:image/png;base64,{flag_b64}' alt='Algeria flag' />"
+    else:
+        # Fallback if the PNG isn't found next to app.py, so the header
+        # still renders instead of breaking.
+        flag_html = "🇩🇿"
     st.markdown(
-        f"<div class='eor-brand'>{build_flag_html()}<h1>{t(language, 'title')}</h1></div>",
+        f"<div class='eor-brand'>{flag_html}<h1>{t(language, 'title')}</h1></div>",
         unsafe_allow_html=True,
     )
     st.caption(t(language, "subtitle"))
