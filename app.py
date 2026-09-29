@@ -175,28 +175,89 @@ def apply_language_css(language: str) -> None:
     direction = "rtl" if language == "ar" else "ltr"
     st.markdown(
         f"""<style>
-        html, body, [data-testid="stAppViewContainer"] {{ direction: {direction}; }}
-        .eor-brand {{ display:flex; align-items:center; gap:12px; margin-bottom:12px; }}
-        .dz-flag-img {{ width:42px; height:28px; object-fit:cover; border:1px solid #777; border-radius:2px; display:block; }}
-        .eor-brand h1 {{ margin:0; font-size:1.7rem; }}
-
-        /* Hide the Streamlit Community Cloud "View source on GitHub" button.
-           This button is sent to the page by the Community Cloud host
-           itself (not part of the app's own toolbar), so client.toolbarMode
-           has no effect on it - CSS is the only lever available here.
-           The icon (epm40z21) sits two levels deep inside the button, not
-           as a direct child, so this must use a plain descendant match
-           (":has(div...)"), not a direct-child match (":has(> div...)"),
-           or it silently fails to match the button at all.
-           If a future Streamlit/Community Cloud update changes this hashed
-           class name, re-inspect the icon (element picker -> Copy element)
-           and swap epm40z21 below for the new one. */
-        button[data-testid="stBaseButton-header"]:has(
-            div[data-testid="stToolbarActionButtonIcon"].epm40z21
-        ) {{
-            display: none !important;
+        :root {{
+            --eor-ink: #18212b;
+            --eor-muted: #687482;
+            --eor-line: #e4e8ec;
+            --eor-surface: #ffffff;
+            --eor-surface-2: #f7f9fb;
+            --eor-accent: #0f5c5e;
+            --eor-accent-soft: #eaf4f4;
+            --eor-pass: #19734a;
+            --eor-pass-soft: #edf8f2;
+            --eor-warn: #9a6415;
+            --eor-warn-soft: #fff7e8;
+            --eor-fail: #a33a3a;
+            --eor-fail-soft: #fff0f0;
         }}
 
+        html, body, [data-testid="stAppViewContainer"] {{ direction: {direction}; }}
+        [data-testid="stAppViewContainer"] {{ background: #f5f7f9; }}
+        [data-testid="stHeader"] {{ background: rgba(245,247,249,.92); }}
+        .main .block-container {{ max-width: 1180px; padding: 1.4rem 1.1rem 3rem; }}
+        [data-testid="stSidebar"] {{ background: #ffffff; border-right: 1px solid var(--eor-line); }}
+        [data-testid="stSidebar"] > div:first-child {{ padding: 1rem .85rem 2rem; }}
+
+        .eor-brand {{ display:flex; align-items:center; gap:12px; margin: 0 0 4px; }}
+        .dz-flag-img {{ width:36px; height:24px; object-fit:cover; border:1px solid #cbd2d8; border-radius:4px; display:block; }}
+        .eor-brand h1 {{ margin:0; color:var(--eor-ink); font-size:clamp(1.35rem, 3vw, 2rem); line-height:1.12; letter-spacing:-.025em; }}
+        .eor-subtitle {{ color:var(--eor-muted); margin:0 0 1.2rem; font-size:.94rem; }}
+
+        .section-kicker {{ display:flex; align-items:center; gap:8px; margin:1.35rem 0 .65rem; color:var(--eor-muted); font-size:.72rem; font-weight:700; letter-spacing:.11em; text-transform:uppercase; }}
+        .section-kicker .icon {{ width:26px; height:26px; display:grid; place-items:center; border:1px solid #cfd8dc; border-radius:7px; color:var(--eor-accent); background:#fff; font-size:.82rem; }}
+        .surface-card {{ background:var(--eor-surface); border:1px solid var(--eor-line); border-radius:14px; padding:1rem 1rem .9rem; box-shadow:0 1px 2px rgba(20,30,40,.03); }}
+        .metric-strip {{ margin-bottom:.4rem; }}
+        .metric-strip [data-testid="stMetric"] {{ background:#fff; border:1px solid var(--eor-line); border-radius:12px; padding:.75rem .85rem; min-height:96px; }}
+        [data-testid="stMetricLabel"] {{ color:var(--eor-muted) !important; font-size:.75rem !important; }}
+        [data-testid="stMetricValue"] {{ color:var(--eor-ink) !important; font-size:1.35rem !important; }}
+
+        .status-card {{ background:#fff; border:1px solid var(--eor-line); border-radius:13px; padding:.8rem .9rem; margin:.6rem 0; }}
+        .status-head {{ display:flex; align-items:center; justify-content:space-between; gap:10px; }}
+        .status-name {{ color:var(--eor-ink); font-weight:700; font-size:.96rem; }}
+        .status-pill {{ display:inline-flex; align-items:center; justify-content:center; min-width:74px; padding:4px 9px; border-radius:999px; font-size:.68rem; font-weight:800; letter-spacing:.05em; }}
+        .status-pill.pass {{ color:var(--eor-pass); background:var(--eor-pass-soft); border:1px solid #cbe9d8; }}
+        .status-pill.marginal {{ color:var(--eor-warn); background:var(--eor-warn-soft); border:1px solid #f1dfb9; }}
+        .status-pill.fail {{ color:var(--eor-fail); background:var(--eor-fail-soft); border:1px solid #f0caca; }}
+        .status-meta {{ margin-top:.5rem; color:var(--eor-muted); font-size:.78rem; line-height:1.45; }}
+        .result-bar {{ height:7px; background:#edf0f2; border-radius:99px; overflow:hidden; margin-top:.65rem; }}
+        .result-fill {{ height:100%; border-radius:99px; }}
+        .result-row {{ background:#fff; border:1px solid var(--eor-line); border-radius:12px; padding:.72rem .8rem; margin:.45rem 0; }}
+        .result-row-top {{ display:flex; align-items:center; justify-content:space-between; gap:10px; }}
+        .result-label {{ font-weight:650; font-size:.88rem; color:var(--eor-ink); }}
+        .result-value {{ font-weight:750; font-size:.86rem; color:var(--eor-ink); white-space:nowrap; }}
+
+        div[data-testid="stTabs"] button {{ font-size:.83rem; font-weight:650; padding:.55rem .7rem; }}
+        div[data-testid="stTabs"] [data-baseweb="tab-list"] {{ gap:.15rem; border-bottom:1px solid var(--eor-line); }}
+        div[data-testid="stTabs"] [data-baseweb="tab"] {{ white-space:normal; min-height:42px; }}
+        [data-testid="stExpander"] {{ border-color:var(--eor-line) !important; border-radius:10px !important; background:#fff; }}
+        [data-testid="stDataFrame"] {{ border:1px solid var(--eor-line); border-radius:10px; overflow:hidden; }}
+        [data-testid="stAlert"] {{ border-radius:10px; }}
+        .input-note {{ color:var(--eor-muted); font-size:.75rem; line-height:1.45; margin:.2rem 0 .65rem; }}
+        .toolbar-note {{ color:var(--eor-muted); font-size:.78rem; }}
+
+        /* Hide the Streamlit Community Cloud source button without affecting app controls. */
+        button[data-testid="stBaseButton-header"]:has(div[data-testid="stToolbarActionButtonIcon"].epm40z21) {{ display:none !important; }}
+
+        @media (max-width: 700px) {{
+            .main .block-container {{ padding: .8rem .7rem 2rem; max-width:100%; }}
+            [data-testid="stSidebar"] > div:first-child {{ padding:.7rem .65rem 1.5rem; }}
+            .eor-brand {{ gap:9px; margin-top:.15rem; }}
+            .dz-flag-img {{ width:30px; height:20px; }}
+            .eor-brand h1 {{ font-size:1.3rem; }}
+            .eor-subtitle {{ font-size:.82rem; line-height:1.4; margin-bottom:.7rem; }}
+            .section-kicker {{ margin-top:1rem; }}
+            .metric-strip [data-testid="stMetric"] {{ min-height:82px; padding:.65rem .7rem; }}
+            [data-testid="stMetricValue"] {{ font-size:1.12rem !important; }}
+            div[data-testid="stTabs"] [data-baseweb="tab-list"] {{ overflow-x:auto; scrollbar-width:none; }}
+            div[data-testid="stTabs"] [data-baseweb="tab-list"]::-webkit-scrollbar {{ display:none; }}
+            div[data-testid="stTabs"] [data-baseweb="tab"] {{ min-width:max-content; font-size:.74rem; padding:.45rem .55rem; }}
+            .status-card, .result-row {{ border-radius:10px; }}
+            .status-head {{ align-items:flex-start; }}
+            .status-name {{ max-width:72%; line-height:1.3; }}
+            .result-label {{ max-width:75%; }}
+            [data-testid="stDataFrame"] {{ font-size:.72rem; }}
+            .plotly {{ min-height:280px !important; }}
+        }}
         </style>""",
         unsafe_allow_html=True,
     )
@@ -813,8 +874,29 @@ def plot_probability_chart(probabilities: Dict[str, float], title: str) -> go.Fi
 # 8. Main app layout
 # ---------------------------------------------------------------------------
 
+def render_section_kicker(icon: str, label: str) -> None:
+    st.markdown(
+        f'<div class="section-kicker"><span class="icon">{icon}</span><span>{label}</span></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_status_card(method_name: str, result: Dict[str, Any], language: str) -> None:
+    status = result["status"]
+    status_class = status.lower()
+    failed = result.get("violations", [])
+    meta = f"{t(language, 'violations')}: {', '.join(failed)}" if failed else t(language, "screening_caption")
+    card = f'''<div class="status-card">
+        <div class="status-head">
+            <div class="status-name">{method_name}</div>
+            <span class="status-pill {status_class}">{status}</span>
+        </div>
+        <div class="status-meta">{meta}</div>
+    </div>'''
+    st.markdown(card, unsafe_allow_html=True)
+
+
 def render_kpi_cards(inputs: Dict[str, Any]) -> None:
-    """Render key physical proxy metrics as KPI cards."""
     record = {
         "Permeability": safe_float(inputs.get("Permeability"), 120.0),
         "Porosity": normalize_percentage_to_fraction(safe_float(inputs.get("Porosity"), 18.0)),
@@ -845,40 +927,42 @@ def main() -> None:
     if flag_b64:
         flag_html = f"<img class='dz-flag-img' src='data:image/png;base64,{flag_b64}' alt='Algeria flag' />"
     else:
-        # Fallback if the PNG isn't found next to app.py, so the header
-        # still renders instead of breaking.
         flag_html = "🇩🇿"
+
     st.markdown(
         f"<div class='eor-brand'>{flag_html}<h1>{t(language, 'title')}</h1></div>",
         unsafe_allow_html=True,
     )
-    st.caption(t(language, "subtitle"))
+    st.markdown(f"<p class='eor-subtitle'>{t(language, 'subtitle')}</p>", unsafe_allow_html=True)
 
     with st.sidebar:
-        st.header(t(language, "inputs"))
+        render_section_kicker("⌖", t(language, "inputs"))
         with st.expander(t(language, "guide"), expanded=False):
             st.write(t(language, "guide_text"))
             st.dataframe(GEOLOGICAL_LITHOLOGY_GUIDE, hide_index=True, use_container_width=True)
 
-        lithology_options = ["Carbonate", "Carbonate / Dolomite", "Carbonate / Limestone", "Sandstone", "Sandstone / Quartzite", "Mixed Clastic", "Unknown"]
-        lithology = st.selectbox(t(language, "lithology"), lithology_options, index=0)
+        with st.expander(t(language, "manual"), expanded=True):
+            lithology_options = ["Carbonate", "Carbonate / Dolomite", "Carbonate / Limestone", "Sandstone", "Sandstone / Quartzite", "Mixed Clastic", "Unknown"]
+            lithology = st.selectbox(t(language, "lithology"), lithology_options, index=0)
+            permeability = st.number_input(f"{t(language, 'permeability')} (mD)", value=120.0, min_value=0.1, step=1.0)
+            porosity_pct = st.number_input(f"{t(language, 'porosity')} (%)", value=18.0, min_value=0.1, max_value=60.0, step=0.1)
 
-        permeability = st.number_input(f"{t(language, 'permeability')} (mD)", value=120.0, min_value=0.1, step=1.0)
-        porosity_pct = st.number_input(f"{t(language, 'porosity')} (%)", value=18.0, min_value=0.1, max_value=60.0, step=0.1)
+        with st.expander("Depth, pressure & temperature", expanded=False):
+            depth_unit = st.selectbox(f"{t(language, 'depth')} unit", ["m", "ft"])
+            depth = st.number_input(f"{t(language, 'depth')} ({depth_unit})", value=1828.8 if depth_unit == "m" else 6000.0, min_value=1.0, step=100.0)
+            pressure_unit = st.selectbox(f"{t(language, 'pressure')} unit", ["bar", "psi", "MPa"])
+            pressure = st.number_input(f"{t(language, 'pressure')} ({pressure_unit})", value=172.37 if pressure_unit == "bar" else (2500.0 if pressure_unit == "psi" else 17.24), min_value=0.1, step=10.0)
+            mmp = st.number_input(f"MMP ({pressure_unit}, optional)", value=0.0, min_value=0.0, step=5.0 if pressure_unit == "bar" else 50.0, help="Enter 0 when MMP is unavailable; depth will be used only as a proxy for miscible-gas screening.")
+            temperature_unit = st.selectbox(f"{t(language, 'temperature')} unit", ["°C", "°F"])
+            temperature = st.number_input(f"{t(language, 'temperature')} ({temperature_unit})", value=82.22 if temperature_unit == "°C" else 180.0, min_value=-50.0, step=1.0)
 
-        depth_unit = st.selectbox(f"{t(language, 'depth')} unit", ["m", "ft"])
-        depth = st.number_input(f"{t(language, 'depth')} ({depth_unit})", value=1828.8 if depth_unit == "m" else 6000.0, min_value=1.0, step=100.0)
-        pressure_unit = st.selectbox(f"{t(language, 'pressure')} unit", ["bar", "psi", "MPa"])
-        pressure = st.number_input(f"{t(language, 'pressure')} ({pressure_unit})", value=172.37 if pressure_unit == "bar" else (2500.0 if pressure_unit == "psi" else 17.24), min_value=0.1, step=10.0)
-        mmp = st.number_input(f"MMP ({pressure_unit}, optional)", value=0.0, min_value=0.0, step=5.0 if pressure_unit == "bar" else 50.0, help="Enter 0 when MMP is unavailable; depth will be used only as a proxy for miscible-gas screening.")
-        mmp_psi = mmp if pressure_unit == "psi" else mmp * {"bar": 14.5037738, "MPa": 145.037738}.get(pressure_unit, 1.0)
-        temperature_unit = st.selectbox(f"{t(language, 'temperature')} unit", ["°C", "°F"])
-        temperature = st.number_input(f"{t(language, 'temperature')} ({temperature_unit})", value=82.22 if temperature_unit == "°C" else 180.0, min_value=-50.0, step=1.0)
-        viscosity_unit = st.selectbox(f"{t(language, 'viscosity')} unit", ["cP", "mPa·s"])
-        viscosity = st.number_input(f"{t(language, 'viscosity')} ({viscosity_unit})", value=8.0, min_value=0.001, step=0.1)
-        gravity_unit = st.selectbox(f"{t(language, 'gravity')} unit", ["°API", "Specific Gravity (SG)"])
-        gravity = st.number_input(f"{t(language, 'gravity')} ({gravity_unit})", value=32.0 if gravity_unit == "°API" else 0.865, min_value=0.01, step=0.1)
+        with st.expander("Fluid properties", expanded=False):
+            viscosity_unit = st.selectbox(f"{t(language, 'viscosity')} unit", ["cP", "mPa·s"])
+            viscosity = st.number_input(f"{t(language, 'viscosity')} ({viscosity_unit})", value=8.0, min_value=0.001, step=0.1)
+            gravity_unit = st.selectbox(f"{t(language, 'gravity')} unit", ["°API", "Specific Gravity (SG)"])
+            gravity = st.number_input(f"{t(language, 'gravity')} ({gravity_unit})", value=32.0 if gravity_unit == "°API" else 0.865, min_value=0.01, step=0.1)
 
+    mmp_psi = mmp if pressure_unit == "psi" else mmp * {"bar": 14.5037738, "MPa": 145.037738}.get(pressure_unit, 1.0)
     field_units = convert_to_field_units(depth, depth_unit, pressure, pressure_unit, temperature, temperature_unit, viscosity, viscosity_unit, gravity, gravity_unit)
     input_data = {
         "Lithology": lithology, "Permeability": permeability, "Porosity": porosity_pct,
@@ -886,12 +970,21 @@ def main() -> None:
         "API_Gravity": field_units["API_Gravity"], "Depth_ft": field_units["Depth_ft"], "Pressure_psi": field_units["Pressure_psi"],
     }
 
-    st.subheader(t(language, "proxies"))
+    render_section_kicker("⌁", t(language, "proxies"))
     render_kpi_cards(input_data)
-    st.caption(f"{t(language, 'pressure_note')} Normalized: {field_units['Depth_ft']:.1f} ft | {field_units['Pressure_psi']:.1f} psi | {field_units['Temperature']:.1f} °F | {field_units['Oil_Viscosity']:.3f} cP | {field_units['API_Gravity']:.2f} °API")
+    st.markdown(
+        f'<div class="input-note">{t(language, "pressure_note")} Normalized: {field_units["Depth_ft"]:.1f} ft | {field_units["Pressure_psi"]:.1f} psi | {field_units["Temperature"]:.1f} °F | {field_units["Oil_Viscosity"]:.3f} cP | {field_units["API_Gravity"]:.2f} °API</div>',
+        unsafe_allow_html=True,
+    )
 
-    classical_results = classical_screening(lithology, permeability, normalize_percentage_to_fraction(porosity_pct), field_units["Oil_Viscosity"], field_units["Temperature"], field_units["API_Gravity"], field_units["Depth_ft"], field_units["Pressure_psi"], mmp_psi if mmp_psi > 0 else None)
+    classical_results = classical_screening(
+        lithology, permeability, normalize_percentage_to_fraction(porosity_pct),
+        field_units["Oil_Viscosity"], field_units["Temperature"], field_units["API_Gravity"],
+        field_units["Depth_ft"], field_units["Pressure_psi"], mmp_psi if mmp_psi > 0 else None
+    )
     model_result = predict_ml_system(input_data)
+
+    render_section_kicker("◫", "Analysis")
     tab1, tab2, tab3 = st.tabs([t(language, "engine1_title"), t(language, "ml"), t(language, "consensus")])
 
     with tab1:
@@ -899,13 +992,12 @@ def main() -> None:
         st.caption(t(language, "screening_caption"))
         st.info(t(language, "engine1_disclaimer"))
         for method_name, result in classical_results.items():
-            status = result["status"]
-            color = {"PASS": "#2ca02c", "MARGINAL": "#ff7f0e", "FAIL": "#d62728"}.get(status, "#4c78a8")
-            st.markdown(f"<h4 style='color:{color};'>{method_name}: {status}</h4>", unsafe_allow_html=True)
-            if result["violations"]:
-                st.warning(f"{t(language, 'violations')}: {', '.join(result['violations'])}")
+            render_status_card(method_name, result, language)
             with st.expander(f"{t(language, 'method_details')}: {method_name}"):
-                st.dataframe(pd.DataFrame([{"Parameter": k, "Status": v} for k, v in result["parameters"].items()]), hide_index=True, use_container_width=True)
+                st.dataframe(
+                    pd.DataFrame([{"Parameter": k, "Status": v} for k, v in result["parameters"].items()]),
+                    hide_index=True, use_container_width=True
+                )
 
     with tab2:
         st.subheader(t(language, "ml"))
@@ -914,16 +1006,16 @@ def main() -> None:
         elif model_result.get("warning"):
             st.warning(t(language, "fallback_warning"))
         for model_name, info in model_result["results"].items():
-            st.markdown(f"### {model_name}")
-            st.metric(t(language, "predicted"), info["prediction"])
-            st.plotly_chart(plot_probability_chart(info["probabilities"], f"{t(language, 'probability')} - {model_name}"), use_container_width=True)
+            with st.container(border=True):
+                st.markdown(f"**{model_name}**")
+                st.metric(t(language, "predicted"), info["prediction"])
+                st.plotly_chart(plot_probability_chart(info["probabilities"], f"{t(language, 'probability')} - {model_name}"), use_container_width=True)
 
     with tab3:
         st.subheader(t(language, "consensus"))
         results = model_result["results"]
         consensus_scores = {method: float(np.mean([item["probabilities"].get(method, 0.0) for item in results.values()])) for method in EOR_CLASSES}
 
-        # Display Engine B before applying any Engine A rule weighting.
         st.markdown(f"### {t(language, 'ml_only_result')}")
         st.caption("These probabilities come from Engine B only; Engine A has not modified them.")
         ml_only_rank = sorted(consensus_scores.items(), key=lambda item: item[1], reverse=True)
@@ -932,11 +1024,10 @@ def main() -> None:
                 {"Rank": index, "EOR Method": method, t(language, "ml_mean"): f"{score:.1%}"}
                 for index, (method, score) in enumerate(ml_only_rank, start=1)
             ]),
-            hide_index=True,
-            use_container_width=True,
+            hide_index=True, use_container_width=True,
         )
-        ml_only_fig = go.Figure(data=[go.Bar(x=[item[0] for item in ml_only_rank], y=[item[1] for item in ml_only_rank], marker_color="#3366cc")])
-        ml_only_fig.update_layout(title=t(language, "ml_only_result"), xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"), template="plotly_white", height=380, margin=dict(l=20, r=20, t=40, b=100))
+        ml_only_fig = go.Figure(data=[go.Bar(x=[item[0] for item in ml_only_rank], y=[item[1] for item in ml_only_rank])])
+        ml_only_fig.update_layout(title=t(language, "ml_only_result"), xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"), template="plotly_white", height=340, margin=dict(l=12, r=12, t=42, b=90))
         st.plotly_chart(ml_only_fig, use_container_width=True)
 
         st.markdown(f"### {t(language, 'combined_result')}")
@@ -947,11 +1038,20 @@ def main() -> None:
             weight = {"PASS": 1.0, "MARGINAL": 0.7, "FAIL": 0.2}[status]
             combined_rank.append((method_name, consensus_scores[method_name] * weight, status))
         combined_rank.sort(key=lambda item: item[1], reverse=True)
+
         for method_name, score, status in combined_rank:
-            color = {"PASS": "#2ca02c", "MARGINAL": "#ff7f0e", "FAIL": "#d62728"}[status]
-            st.markdown(f"<div style='display:flex;align-items:center;gap:12px;margin:8px 0;'><b style='width:220px'>{method_name}</b><span style='width:90px;background:{color};color:white;padding:4px;border-radius:6px;text-align:center'>{status}</span><div style='flex:1;background:#e9ecef;height:20px'><div style='width:{score * 100:.1f}%;height:100%;background:{color}'></div></div><b style='width:60px;text-align:right'>{score * 100:.1f}%</b></div>", unsafe_allow_html=True)
+            fill = "#19734a" if status == "PASS" else "#9a6415" if status == "MARGINAL" else "#a33a3a"
+            st.markdown(
+                f'''<div class="result-row">
+                    <div class="result-row-top"><span class="result-label">{method_name}</span><span class="result-value">{score * 100:.1f}%</span></div>
+                    <div class="status-meta">{status}</div>
+                    <div class="result-bar"><div class="result-fill" style="width:{max(0, min(score * 100, 100)):.1f}%; background:{fill};"></div></div>
+                </div>''',
+                unsafe_allow_html=True,
+            )
+
         fig = go.Figure(data=[go.Bar(x=[x[0] for x in combined_rank], y=[x[1] for x in combined_rank])])
-        fig.update_layout(title=t(language, "combined"), xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"), template="plotly_white", height=420, margin=dict(l=20, r=20, t=40, b=100))
+        fig.update_layout(title=t(language, "combined"), xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"), template="plotly_white", height=360, margin=dict(l=12, r=12, t=42, b=90))
         st.plotly_chart(fig, use_container_width=True)
 
 
