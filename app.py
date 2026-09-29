@@ -1,234 +1,960 @@
-import streamlit as st
-import numpy as np
+"""
+Algerian EOR Screening Platform
+==============================
+Dual-Engine Streamlit App for:
+  - Classical reservoir screening rules
+  - Physics-informed ML ensemble using V5-style engineered features
 
-# -----------------------------------------------------------------------------
-# 1. PAGE CONFIGURATION & CUSTOM STYLING
-# -----------------------------------------------------------------------------
+This version is intentionally robust to missing trained model artifacts.
+If the model files are not present, the app does not crash and instead
+falls back to a transparent, rule-based placeholder probability engine so the
+UI remains usable while the user trains or saves the real models.
+"""
+
+from __future__ import annotations
+
+import base64
+import json
+import math
+import os
+import warnings
+from pathlib import Path
+from typing import Any, Dict, Iterable, List
+
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+
+try:
+    import joblib
+except Exception:  # pragma: no cover
+    joblib = None
+
+warnings.filterwarnings("ignore")
+
+try:
+    import lightgbm as lgb
+except Exception:  # pragma: no cover
+    lgb = None
+
+try:
+    import xgboost as xgb
+except Exception:  # pragma: no cover
+    xgb = None
+
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, f1_score
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+
 st.set_page_config(
-    page_title="EOR Screening Assistant",
-    page_icon="💧",
+    page_title="Algerian EOR Screening Platform",
+    page_icon="🛢️",
     layout="wide",
-    initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for minimalist tech aesthetic, rounded cards, and touch-friendly targets
-st.markdown("""
-    <style>
-    /* Background & Container Styling */
-    .stApp {
-        background-color: #F8FAFC;
-    }
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 3rem;
-        max-width: 900px;
-    }
-    
-    /* Input Field Customization */
-    div[data-baseweb="input"] > div, div[data-baseweb="select"] > div {
-        border-radius: 8px !important;
-        min-height: 48px !important;
-        border-color: #CBD5E1 !important;
-    }
-    
-    /* Primary CTA Button */
-    .stButton > button {
-        background-color: #0F52BA;
-        color: #FFFFFF;
-        border-radius: 8px;
-        height: 52px;
-        font-size: 16px;
-        font-weight: 700;
-        width: 100%;
-        border: none;
-        transition: all 0.2s ease-in-out;
-        margin-top: 10px;
-    }
-    .stButton > button:hover {
-        background-color: #0B3C8A;
-        color: #FFFFFF;
-        box-shadow: 0 4px 12px rgba(15, 82, 186, 0.25);
-    }
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+EOR_CLASSES = [
+    "Miscible Gas Injection",
+    "Immiscible Gas Injection",
+    "WAG Injection",
+    "Chemical EOR",
+    "Hybrid Gas-Chemical",
+    "Secondary Waterflooding",
+]
 
-    /* Metric Card Styling */
-    .metric-card {
-        background-color: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        border-radius: 10px;
-        padding: 16px;
-        text-align: center;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    .metric-label {
-        color: #64748B;
-        font-size: 13px;
-        font-weight: 600;
-        margin-bottom: 4px;
-    }
-    .metric-value {
-        color: #0F172A;
-        font-size: 20px;
-        font-weight: 700;
-    }
-    
-    /* Custom Section Headers */
-    .section-header {
-        color: #0F172A;
-        font-size: 18px;
-        font-weight: 700;
-        margin-top: 24px;
-        margin-bottom: 12px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# -----------------------------------------------------------------------------
-# 2. CONSTANTS & DATA MAPPINGS
-# -----------------------------------------------------------------------------
-EOR_TARGET_MAP = {
-    0: "Hybrid Gas-Chemical",
-    1: "Immiscible Gas Injection",
-    2: "Miscible Gas Injection",
-    3: "Secondary Waterflooding",
-    4: "WAG Injection"
+DEFAULT_INPUTS = {
+    "Lithology": "Carbonate",
+    "Permeability": 120.0,
+    "Porosity": 18.0,
+    "Oil_Viscosity": 8.0,
+    "Temperature": 82.22,
+    "API_Gravity": 32.0,
+    "Depth_m": 1828.8,
+    "Pressure_bar": 172.37,
 }
 
-# Helper function to render color-coded eligibility badges
-def render_badge(label, is_eligible):
-    if is_eligible:
-        bg, color, icon, text = "#F0FDF4", "#16A34A", "✓", "Eligible"
-    else:
-        bg, color, icon, text = "#FEF2F2", "#DC2626", "✕", "Ineligible"
-    
-    return f"""
-    <div style="background-color: {bg}; border: 1px solid {color}33; padding: 10px 14px; 
-                border-radius: 8px; margin-bottom: 8px; display: flex; 
-                justify-content: space-between; align-items: center;">
-        <span style="color: #334155; font-size: 14px; font-weight: 500;">{label}</span>
-        <span style="color: {color}; font-weight: 700; font-size: 13px;">{icon} {text}</span>
-    </div>
+LANGUAGES = {"English": "en", "Français": "fr", "العربية": "ar"}
+
+TRANSLATIONS = {
+    "en": {
+        "title": "Algerian EOR Decision-Support Suite",
+        "subtitle": "Dual-engine technical screening: classical rules + physics-informed ML",
+        "language": "Language", "inputs": "Reservoir Inputs",
+        "preset": "Geological Preset / Lithology Guide", "custom": "Custom field data",
+        "manual": "Manual lithology and field data", "lithology": "Lithology",
+        "permeability": "Permeability", "porosity": "Porosity", "viscosity": "Oil Viscosity",
+        "temperature": "Temperature", "gravity": "Oil Gravity", "depth": "Depth", "pressure": "Pressure",
+        "guide": "Algerian geological guide",
+        "guide_text": "Use this general formation-family guide when selecting the dominant lithology for an Algerian reservoir.",
+        "proxies": "Physical Proxies", "classical": "Engine 1: Classical Screening",
+        "ml": "Engine 2: ML Ensemble", "consensus": "Consensus Dashboard",
+        "ml_only_result": "Engine B: ML-Only Result",
+        "combined_result": "Combined Result: Engine A + Engine B",
+        "ml_mean": "Mean ML Probability",
+        "engine1_title": "Classical Heuristic Screening Windows (Preliminary Rules Engine)",
+        "engine1_disclaimer": "These are initial heuristic screening windows. Detailed screening requires local thermodynamics, mobility-ratio analysis, and modern chemical-formulation testing.",
+        "screening_caption": "PASS = ideal range, MARGINAL = near boundary, FAIL = outside the screening range.",
+        "method_details": "Parameter details", "violations": "Violations", "predicted": "Predicted Method",
+        "fallback": "Fallback mode is active because trained model artifacts were not found.",
+        "fallback_warning": "No trained model files were found. Results are heuristic placeholders, not validated model predictions.",
+        "probability": "Probability", "eor_method": "EOR Method", "combined": "Combined Technical Confidence",
+        "pressure_note": "Depth and pressure are displayed and normalized, but current classical rules do not yet apply formation-pressure or MMP correlations.",
+    },
+    "fr": {
+        "title": "Suite algérienne d'aide à la décision EOR",
+        "subtitle": "Criblage technique à deux moteurs : règles classiques + ML informé par la physique",
+        "language": "Langue", "inputs": "Données du réservoir", "preset": "Préréglage géologique / guide de lithologie",
+        "custom": "Données personnalisées", "manual": "Lithologie et données saisies manuellement", "lithology": "Lithologie",
+        "permeability": "Perméabilité", "porosity": "Porosité", "viscosity": "Viscosité de l'huile",
+        "temperature": "Température", "gravity": "Gravité API", "depth": "Profondeur", "pressure": "Pression",
+        "guide": "Guide géologique algérien",
+        "guide_text": "Utilisez ce guide général des familles stratigraphiques pour sélectionner la lithologie dominante d'un réservoir algérien.",
+        "proxies": "Indicateurs physiques", "classical": "Moteur 1 : criblage classique", "ml": "Moteur 2 : ensemble ML",
+        "consensus": "Tableau de consensus", "screening_caption": "PASS = plage idéale, MARGINAL = proche de la limite, FAIL = hors plage.",
+        "ml_only_result": "Moteur B : résultat ML seul", "combined_result": "Résultat combiné : moteur A + moteur B", "ml_mean": "Probabilité ML moyenne",
+        "engine1_title": "Fenêtres heuristiques classiques (moteur de règles préliminaires)",
+        "engine1_disclaimer": "Ces fenêtres sont heuristiques et préliminaires. Le criblage détaillé nécessite la thermodynamique locale, les rapports de mobilité et des essais de formulations chimiques modernes.",
+        "method_details": "Détails des paramètres", "violations": "Dépassements", "predicted": "Méthode prédite",
+        "fallback": "Le mode secours est actif car les modèles entraînés sont absents.",
+        "fallback_warning": "Aucun modèle entraîné trouvé. Les résultats sont heuristiques et non validés.",
+        "probability": "Probabilité", "eor_method": "Méthode EOR", "combined": "Confiance technique combinée",
+        "pressure_note": "La profondeur et la pression sont normalisées, mais les règles actuelles n'appliquent pas encore les corrélations de pression de formation ou de MMP.",
+    },
+    "ar": {
+        "title": "منصة دعم قرار الاستخلاص المعزز للنفط في الجزائر",
+        "subtitle": "فحص تقني بمحركين: قواعد كلاسيكية وتعلم آلي مدعوم بالفيزياء",
+        "language": "اللغة", "inputs": "بيانات المكمن", "preset": "الإعداد الجيولوجي / دليل الصخور",
+        "custom": "بيانات مخصصة", "manual": "بيانات الصخور والمكمن يدوياً", "lithology": "الليثولوجيا",
+        "permeability": "النفاذية", "porosity": "المسامية", "viscosity": "لزوجة النفط",
+        "temperature": "درجة الحرارة", "gravity": "كثافة API", "depth": "العمق", "pressure": "الضغط",
+        "guide": "الدليل الجيولوجي الجزائري",
+        "guide_text": "استخدم هذا الدليل العام للعائلات التكوينية لاختيار الليثولوجيا السائدة في المكمن الجزائري.",
+        "proxies": "المؤشرات الفيزيائية", "classical": "المحرك 1: الفحص الكلاسيكي", "ml": "المحرك 2: ensemble للتعلم الآلي",
+        "consensus": "لوحة التوافق", "screening_caption": "PASS = النطاق المثالي، MARGINAL = قريب من الحد، FAIL = خارج النطاق.",
+        "ml_only_result": "المحرك B: نتيجة التعلم الآلي فقط", "combined_result": "النتيجة المجمعة: المحرك A + المحرك B", "ml_mean": "متوسط احتمال التعلم الآلي",
+        "engine1_title": "نوافذ الفحص الكلاسيكية الإرشادية (محرك القواعد الأولي)",
+        "engine1_disclaimer": "هذه حدود فحص إرشادية أولية. يتطلب الفحص التفصيلي الديناميكا الحرارية المحلية ونسب الحركة واختبارات التركيبات الكيميائية الحديثة.",
+        "method_details": "تفاصيل المعايير", "violations": "المخالفات", "predicted": "الطريقة المتوقعة",
+        "fallback": "الوضع الاحتياطي فعال لأن ملفات النماذج غير موجودة.",
+        "fallback_warning": "لم يتم العثور على نموذج مدرب. النتائج تقريبية وليست تنبؤات نموذج معتمد.",
+        "probability": "الاحتمال", "eor_method": "طريقة EOR", "combined": "الثقة التقنية المجمعة",
+        "pressure_note": "تم توحيد العمق والضغط، لكن القواعد الحالية لا تطبق بعد علاقات ضغط المكمن أو MMP.",
+    },
+}
+
+GEOLOGICAL_LITHOLOGY_GUIDE = pd.DataFrame([
+    {"Formation family": "Triassic", "General lithology": "Sandstone"},
+    {"Formation family": "Devonian", "General lithology": "Sandstone"},
+    {"Formation family": "Ordovician quartzite", "General lithology": "Quartzite sandstone"},
+    {"Formation family": "Carboniferous", "General lithology": "Carbonate"},
+])
+
+
+def t(language: str, key: str) -> str:
+    return TRANSLATIONS.get(language, TRANSLATIONS["en"]).get(key, key)
+
+
+@st.cache_data
+def load_flag_image_base64(filename: str = "algeria-flag.png") -> str | None:
+    """Read the flag PNG from the repo root and return it as a base64 string.
+
+    Returns None if the file isn't found, so the caller can fall back
+    gracefully instead of breaking the header layout.
     """
+    path = Path(__file__).resolve().parent / filename
+    if not path.exists():
+        return None
+    return base64.b64encode(path.read_bytes()).decode("utf-8")
 
-# -----------------------------------------------------------------------------
-# 3. DASHBOARD HEADER
-# -----------------------------------------------------------------------------
-st.title("💧 EOR Screening Assistant")
-st.caption("Enhanced Oil Recovery target classification & hydro-dynamic proxy analyzer")
 
-st.divider()
+def apply_language_css(language: str) -> None:
+    direction = "rtl" if language == "ar" else "ltr"
+    st.markdown(
+        f"""<style>
+        html, body, [data-testid="stAppViewContainer"] {{ direction: {direction}; }}
+        .eor-brand {{ display:flex; align-items:center; gap:12px; margin-bottom:12px; }}
+        .dz-flag-img {{ width:42px; height:28px; object-fit:cover; border:1px solid #777; border-radius:2px; display:block; }}
+        .eor-brand h1 {{ margin:0; font-size:1.7rem; }}
 
-# -----------------------------------------------------------------------------
-# 4. INPUT FORM SECTIONS
-# -----------------------------------------------------------------------------
+        /* Hide the Streamlit Community Cloud "View source on GitHub" button.
+           This button is sent to the page by the Community Cloud host
+           itself (not part of the app's own toolbar), so client.toolbarMode
+           has no effect on it - CSS is the only lever available here.
+           The icon (epm40z21) sits two levels deep inside the button, not
+           as a direct child, so this must use a plain descendant match
+           (":has(div...)"), not a direct-child match (":has(> div...)"),
+           or it silently fails to match the button at all.
+           If a future Streamlit/Community Cloud update changes this hashed
+           class name, re-inspect the icon (element picker -> Copy element)
+           and swap epm40z21 below for the new one. */
+        button[data-testid="stBaseButton-header"]:has(
+            div[data-testid="stToolbarActionButtonIcon"].epm40z21
+        ) {{
+            display: none !important;
+        }}
 
-# --- SECTION 1: RESERVOIR PARAMETERS ---
-st.markdown('<div class="section-header">🪨 Reservoir Parameters</div>', unsafe_allow_html=True)
-col1, col2 = st.columns(2)
+        </style>""",
+        unsafe_allow_html=True,
+    )
 
-with col1:
-    lithology = st.selectbox("Lithology", ["Sandstone", "Carbonate"], index=0)
-    permeability = st.number_input("Permeability (mD)", min_value=0.01, value=120.50, step=1.0)
 
-with col2:
-    porosity = st.number_input("Porosity (%)", min_value=1.0, max_value=50.0, value=18.20, step=0.1)
-    temperature = st.number_input("Temperature (°C)", min_value=10.0, max_value=200.0, value=75.00, step=0.5)
+def convert_to_field_units(depth: float, depth_unit: str, pressure: float, pressure_unit: str,
+                           temperature: float, temperature_unit: str, viscosity: float,
+                           viscosity_unit: str, gravity: float, gravity_unit: str) -> Dict[str, float]:
+    """Normalize user inputs to ft, psi, Fahrenheit, cP, and API gravity."""
+    depth_ft = depth if depth_unit == "ft" else depth * 3.280839895
+    pressure_psi = pressure if pressure_unit == "psi" else pressure * {"bar": 14.5037738, "MPa": 145.037738}.get(pressure_unit, 1.0)
+    temperature_f = temperature if temperature_unit == "°F" else temperature * 9 / 5 + 32
+    viscosity_cp = float(viscosity)  # 1 mPa.s = 1 cP
+    gravity_api = gravity if gravity_unit == "°API" else 141.5 / max(float(gravity), 1e-6) - 131.5
+    return {
+        "Depth_ft": float(depth_ft), "Pressure_psi": float(pressure_psi),
+        "Temperature": float(temperature_f), "Oil_Viscosity": float(viscosity_cp),
+        "API_Gravity": float(gravity_api),
+    }
 
-# --- SECTION 2: FLUID PROPERTIES ---
-st.markdown('<div class="section-header">🧪 Fluid Properties</div>', unsafe_allow_html=True)
-col3, col4 = st.columns(2)
 
-with col3:
-    viscosity = st.number_input("Oil Viscosity (cP)", min_value=0.01, value=2.40, step=0.1)
+def standardize_eor_method_v3(raw_str: Any) -> str | None:
+    """Map the workbook's indicator-column names to the six V5 target classes."""
+    text = str(raw_str).lower().strip()
+    if any(keyword in text for keyword in ["steam", "thermal", "combustion", "fire", "hot water"]):
+        return None
+    if "wag" in text:
+        return "WAG Injection"
+    if "miscible" in text and "immiscible" not in text:
+        return "Miscible Gas Injection"
+    if "immiscible" in text and "wag" not in text:
+        return "Immiscible Gas Injection"
+    if any(keyword in text for keyword in ["foam", "sag", "surfactant", "micellar", "alkaline"]):
+        return "Hybrid Gas-Chemical"
+    if any(keyword in text for keyword in ["polymer", "chemical", "asp", "meor", "soap"]):
+        return "Chemical EOR"
+    if any(keyword in text for keyword in ["gas", "co2", "hydrocarbon"]):
+        return "Miscible Gas Injection"
+    if "water" in text or "flooding" in text:
+        return "Secondary Waterflooding"
+    return None
 
-with col4:
-    api = st.number_input("API Gravity (°API)", min_value=5.0, max_value=70.0, value=34.10, step=0.1)
 
-st.divider()
+def load_and_clean_data() -> tuple[pd.DataFrame, pd.Series]:
+    """Read Screening_Original.xlsx and reproduce the V5 training target."""
+    workbook = Path(__file__).resolve().parent / "Screening_Original.xlsx"
+    if not workbook.exists():
+        raise FileNotFoundError(f"Training workbook not found: {workbook}")
 
-# -----------------------------------------------------------------------------
-# 5. DYNAMIC PROXY CALCULATIONS
-# -----------------------------------------------------------------------------
-# Calculating proxies (Mobility Proxy, RQI, FZI) dynamically from inputs
-mobility_proxy = permeability / viscosity if viscosity > 0 else 0.0
-rqi = 0.0314 * np.sqrt(permeability / porosity) if porosity > 0 else 0.0
-phi_z = (porosity / 100) / (1 - (porosity / 100)) if porosity < 100 else 0.01
-fzi = rqi / phi_z if phi_z > 0 else 0.0
+    data = pd.read_excel(workbook, sheet_name="MAIN")
+    data.columns = data.columns.astype(str).str.strip()
+    required = {
+        "Lithology": "Producing Horizon Lithology.1",
+        "Permeability": "Permeability (md)",
+        "Porosity": "Reservoir Porosity (%)",
+        "Oil_Viscosity": "Viscosity (CP)",
+        "Temperature": "Temperature (F)",
+        "API_Gravity": "Oil Gravity (API)",
+    }
+    missing = [column for column in required.values() if column not in data.columns]
+    if missing:
+        raise KeyError(f"Missing training columns: {missing}")
 
-# Dynamic Screening Rule Checks (Example EOR Feasibility Logic)
-pass_miscible = bool(api > 30 and viscosity < 10 and temperature > 50)
-pass_immiscible = bool(api > 15 and viscosity < 100)
-pass_wag = bool(permeability > 10 and porosity > 10)
-pass_chemical = bool(viscosity < 50 and temperature < 90)
-pass_hybrid = bool(pass_chemical and pass_miscible)
-pass_waterflood = bool(permeability > 5 and viscosity < 200)
+    frame = pd.DataFrame({key: data[column] for key, column in required.items()})
+    numeric_fields = ["Permeability", "Porosity", "Oil_Viscosity", "Temperature", "API_Gravity"]
+    for field in numeric_fields:
+        frame[field] = pd.to_numeric(
+            frame[field].astype(str).str.replace(r"[^0-9eE+\-.]", "", regex=True),
+            errors="coerce",
+        )
+    frame["Porosity"] = frame["Porosity"].apply(normalize_percentage_to_fraction)
 
-# -----------------------------------------------------------------------------
-# 6. MODEL EXECUTION & DISPLAY
-# -----------------------------------------------------------------------------
-if st.button("⚡ Screen EOR Technique"):
-    st.markdown("---")
-    st.subheader("📊 Analysis & Recommendation Output")
-    
-    # Simple Mock XGBoost Prediction Selection based on Rules
-    if pass_miscible and pass_wag:
-        predicted_class_id = 2  # Miscible Gas Injection
-    elif pass_hybrid:
-        predicted_class_id = 0  # Hybrid Gas-Chemical
-    elif pass_wag:
-        predicted_class_id = 4  # WAG Injection
-    elif pass_immiscible:
-        predicted_class_id = 1  # Immiscible Gas Injection
+    source_columns = set(required.values()) | {"IOR/EOR Method", "IOR/EOR Method.1"}
+    method_columns = [column for column in data.columns if column not in source_columns]
+
+    def extract_method(row: pd.Series) -> str | None:
+        for column in method_columns:
+            value = row.get(column)
+            if value == 1 or value is True or str(value).strip() == "1":
+                return column
+        return None
+
+    raw_methods = data.apply(extract_method, axis=1)
+    target = raw_methods.apply(standardize_eor_method_v3)
+    valid = target.notna() & frame.notna().all(axis=1)
+    return frame.loc[valid].reset_index(drop=True), target.loc[valid].reset_index(drop=True)
+
+# ---------------------------------------------------------------------------
+# Utility helpers
+# ---------------------------------------------------------------------------
+
+def safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        if value is None or value == "":
+            return default
+        return float(value)
+    except Exception:
+        return default
+
+
+def normalize_percentage_to_fraction(value: float) -> float:
+    """Convert percentage to decimal fraction if needed."""
+    v = safe_float(value, 0.0)
+    if v > 1.0 and v <= 100.0:
+        return v / 100.0
+    return v
+
+
+def as_lower_list(values: Iterable[str]) -> List[str]:
+    return [str(v).strip().lower() for v in values if str(v).strip()]
+
+
+def find_model_file(root_dir: Path, candidates: List[str]) -> Path | None:
+    """Find a model artifact by searching a prioritized list of names."""
+    for candidate in candidates:
+        path = root_dir / candidate
+        if path.exists():
+            return path
+    return None
+
+
+def ensure_feature_columns(data: pd.DataFrame, expected_columns: List[str]) -> pd.DataFrame:
+    """Add missing features with safe defaults to keep the model pipeline stable."""
+    out = data.copy()
+    for col in expected_columns:
+        if col not in out.columns:
+            out[col] = 0.0
+    return out[expected_columns]
+
+
+def lithology_to_workbook_code(lithology: Any) -> int:
+    """Convert the UI lithology label to the workbook's numeric lithology code."""
+    text = str(lithology).lower()
+    if "quartz" in text or "mixed clastic" in text:
+        return 3
+    if "sandstone" in text:
+        return 1
+    if "limestone" in text:
+        return 8
+    if "dolomite" in text or "carbonate" in text:
+        return 2
+    return 1
+
+
+# ---------------------------------------------------------------------------
+# 1. Physical proxy calculator
+# ---------------------------------------------------------------------------
+
+def calculate_physical_proxies(frame: pd.DataFrame) -> pd.DataFrame:
+    """Compute key domain-informed proxy features from reservoir properties."""
+    out = frame.copy()
+
+    perm = pd.to_numeric(out["Permeability"], errors="coerce").fillna(0.0)
+    por = pd.to_numeric(out["Porosity"], errors="coerce").fillna(0.0)
+    visc = pd.to_numeric(out["Oil_Viscosity"], errors="coerce").fillna(0.0)
+
+    out["Mobility_Proxy"] = perm / (visc + 1e-6)
+
+    # RQI = 0.0314 * sqrt(K / phi)
+    phi_safe = por.clip(lower=1e-6)
+    out["RQI"] = 0.0314 * np.sqrt(perm / phi_safe)
+
+    # Phi_z = por / (1 - por)
+    phi_z = phi_safe / (1.0 - phi_safe + 1e-6)
+    out["FZI"] = out["RQI"] / (phi_z + 1e-6)
+
+    return out
+
+
+def add_physics_features(frame: pd.DataFrame) -> pd.DataFrame:
+    """V5-compatible alias for the physical proxy feature builder."""
+    return calculate_physical_proxies(frame)
+
+
+# ---------------------------------------------------------------------------
+# 2. Classical Table / screening engine
+# ---------------------------------------------------------------------------
+
+def evaluate_status(value: float, ideal_min: float, ideal_max: float, marginal_min: float, marginal_max: float) -> str:
+    if ideal_min <= value <= ideal_max:
+        return "PASS"
+    if marginal_min <= value <= marginal_max:
+        return "MARGINAL"
+    return "FAIL"
+
+
+def classical_screening(lithology: str, perm: float, por: float, visc: float, temp: float, api: float, depth_ft: float = 0.0, pressure_psi: float | None = None, mmp_psi: float | None = None) -> Dict[str, Dict[str, Any]]:
+    """Apply preliminary heuristic rules, not a substitute for PVT or MMP studies."""
+    results: Dict[str, Dict[str, Any]] = {}
+
+    pressure_available = pressure_psi is not None and pressure_psi > 0
+    mmp_available = mmp_psi is not None and mmp_psi > 0
+    if pressure_available and mmp_available:
+        pressure_value = float(pressure_psi)
+        mmp_value = float(mmp_psi)
+        pressure_status = "PASS" if pressure_value >= 1.1 * mmp_value else "MARGINAL" if pressure_value >= mmp_value else "FAIL"
+        pressure_detail = f"P_res={pressure_value:.0f} psi; MMP={mmp_value:.0f} psi"
+        pressure_note = "Pressure/MMP gate applied."
     else:
-        predicted_class_id = 3  # Secondary Waterflooding
-        
-    target_technique = EOR_TARGET_MAP.get(predicted_class_id, "Unknown Target")
-    
-    # Recommendation Result Banner
-    st.success(f"**Recommended Primary EOR Method:** {target_technique}")
-    
-    # Outputs: Section A (Advanced Proxies)
-    st.markdown("##### Hydrocarbon Proxies")
-    m_col1, m_col2, m_col3 = st.columns(3)
-    
-    with m_col1:
-        st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-label">Mobility Proxy</div>
-                <div class="metric-value">{mobility_proxy:.3f}</div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-    with m_col2:
-        st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-label">RQI (μm)</div>
-                <div class="metric-value">{rqi:.3f}</div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-    with m_col3:
-        st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-label">FZI (μm)</div>
-                <div class="metric-value">{fzi:.3f}</div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-    st.write("")
-    
-    # Outputs: Section B (Feasibility Checks)
-    st.markdown("##### Feasibility Criteria Checks")
-    f_col1, f_col2 = st.columns(2)
-    
-    with f_col1:
-        st.markdown(render_badge("Pass Miscible", pass_miscible), unsafe_allow_html=True)
-        st.markdown(render_badge("Pass Immiscible", pass_immiscible), unsafe_allow_html=True)
-        st.markdown(render_badge("Pass WAG", pass_wag), unsafe_allow_html=True)
-        
-    with f_col2:
-        st.markdown(render_badge("Pass Chemical", pass_chemical), unsafe_allow_html=True)
-        st.markdown(render_badge("Pass Hybrid", pass_hybrid), unsafe_allow_html=True)
-        st.markdown(render_badge("Pass Waterflood", pass_waterflood), unsafe_allow_html=True)
+        pressure_status = "PASS" if depth_ft >= 4000 else "MARGINAL" if depth_ft >= 3000 else "FAIL"
+        pressure_detail = f"Depth proxy={depth_ft:.0f} ft"
+        pressure_note = "Depth is acting as a proxy because P_res or MMP was not provided."
+
+    miscible_params = {
+        "Pressure vs MMP": pressure_status,
+        "Oil Viscosity": evaluate_status(visc, 0.0, 10.0, 0.0, 25.0),
+        "API Gravity": evaluate_status(api, 22.0, 100.0, 20.0, 100.0),
+        "Porosity": evaluate_status(por, 0.03, 1.0, 0.025, 1.0),
+        "Pressure basis": pressure_detail,
+    }
+    miscible_status = "FAIL" if "FAIL" in miscible_params.values() else "MARGINAL" if "MARGINAL" in miscible_params.values() else "PASS"
+    miscible_violations = [pressure_note] if not (pressure_available and mmp_available) else []
+    if pressure_status == "FAIL" and pressure_available and mmp_available:
+        miscible_violations.append("Reservoir pressure is below MMP.")
+    if miscible_params["Oil Viscosity"] == "FAIL":
+        miscible_violations.append("Oil viscosity exceeds 25 cP.")
+    results["Miscible Gas Injection"] = {"status": miscible_status, "parameters": miscible_params, "violations": miscible_violations}
+
+    immiscible_params = {
+        "API Gravity": evaluate_status(api, 11.0, 35.0, 8.0, 40.0),
+        "Oil Viscosity": evaluate_status(visc, 0.6, 592.0, 0.1, 1000.0),
+        "Permeability": evaluate_status(perm, 30.0, 10000.0, 20.0, 10000.0),
+        "Porosity": evaluate_status(por, 0.15, 1.0, 0.10, 1.0),
+    }
+    immiscible_fails = sum(1 for v in immiscible_params.values() if v == "FAIL")
+    if immiscible_fails == 0:
+        immiscible_status = "PASS"
+    elif immiscible_fails <= 1:
+        immiscible_status = "MARGINAL"
+    else:
+        immiscible_status = "FAIL"
+    results["Immiscible Gas Injection"] = {
+        "status": immiscible_status,
+        "parameters": immiscible_params,
+        "violations": [k for k, v in immiscible_params.items() if v == "FAIL"],
+    }
+
+    wag_params = {
+        "Permeability": evaluate_status(perm, 10.0, 10000.0, 2.0, 10000.0),
+        "Oil Viscosity": evaluate_status(visc, 0.0, 5.0, 0.0, 15.0),
+        "API Gravity": evaluate_status(api, 20.0, 100.0, 15.0, 100.0),
+        "Porosity": evaluate_status(por, 0.10, 1.0, 0.05, 1.0),
+    }
+    wag_fails = sum(1 for v in wag_params.values() if v == "FAIL")
+    if wag_fails == 0:
+        wag_status = "PASS"
+    elif wag_fails <= 1:
+        wag_status = "MARGINAL"
+    else:
+        wag_status = "FAIL"
+    results["WAG Injection"] = {
+        "status": wag_status,
+        "parameters": wag_params,
+        "violations": [k for k, v in wag_params.items() if v == "FAIL"],
+    }
+
+    chemical_params = {
+        "Temperature": evaluate_status(temp, 0.0, 180.0, 0.0, 220.0),
+        "Oil Viscosity": evaluate_status(visc, 0.0, 150.0, 0.0, 1000.0),
+        "Permeability": evaluate_status(perm, 15.0, 10000.0, 5.0, 10000.0),
+        "API Gravity": evaluate_status(api, 13.0, 42.5, 10.0, 45.0),
+    }
+    chemical_fails = sum(1 for v in chemical_params.values() if v == "FAIL")
+    if chemical_fails == 0:
+        chemical_status = "PASS"
+    elif chemical_fails <= 1:
+        chemical_status = "MARGINAL"
+    else:
+        chemical_status = "FAIL"
+    results["Chemical EOR"] = {
+        "status": chemical_status,
+        "parameters": chemical_params,
+        "violations": [k for k, v in chemical_params.items() if v == "FAIL"],
+    }
+
+    gas_status = "PASS" if miscible_status == "PASS" or wag_status == "PASS" else "MARGINAL" if miscible_status == "MARGINAL" or wag_status == "MARGINAL" else "FAIL"
+    hybrid_status = "FAIL" if gas_status == "FAIL" or chemical_status == "FAIL" else "PASS" if gas_status == "PASS" and chemical_status == "PASS" else "MARGINAL"
+    results["Hybrid Gas-Chemical"] = {
+        "status": hybrid_status,
+        "parameters": {
+            "Gas displacement driver": gas_status,
+            "Chemical/surfactant stabilizer": chemical_status,
+        },
+        "violations": [
+            f"Gas displacement driver is {gas_status}." if gas_status != "PASS" else "",
+            f"Chemical/surfactant stabilizer is {chemical_status}." if chemical_status != "PASS" else "",
+        ],
+    }
+    results["Hybrid Gas-Chemical"]["violations"] = [item for item in results["Hybrid Gas-Chemical"]["violations"] if item]
+
+    waterflood_params = {
+        "API Gravity": evaluate_status(api, 15.0, 35.0, 10.0, 40.0),
+        "Oil Viscosity": evaluate_status(visc, 0.0, 100.0, 0.0, 200.0),
+        "Permeability": evaluate_status(perm, 10.0, 10000.0, 5.0, 10000.0),
+        "Porosity": evaluate_status(por, 0.10, 1.0, 0.08, 1.0),
+    }
+    waterflood_fails = sum(1 for v in waterflood_params.values() if v == "FAIL")
+    if waterflood_fails == 0:
+        water_status = "PASS"
+    elif waterflood_fails <= 1:
+        water_status = "MARGINAL"
+    else:
+        water_status = "FAIL"
+    results["Secondary Waterflooding"] = {
+        "status": water_status,
+        "parameters": waterflood_params,
+        "violations": [k for k, v in waterflood_params.items() if v == "FAIL"],
+    }
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# 3. V5-style feature builder
+# ---------------------------------------------------------------------------
+
+def build_classical_flags(frame: pd.DataFrame) -> pd.DataFrame:
+    out = frame.copy()
+    out["Pass_Miscible"] = (
+        (out["API_Gravity"] >= 22)
+        & (out["Oil_Viscosity"] <= 35)
+        & (out["Permeability"] >= 1.5)
+        & (out["Porosity"] >= 0.03)
+    ).astype(int)
+
+    out["Pass_Immiscible"] = (
+        (out["API_Gravity"].between(11, 35))
+        & (out["Oil_Viscosity"].between(0.6, 592))
+        & (out["Permeability"] >= 30)
+    ).astype(int)
+
+    out["Pass_WAG"] = (
+        (out["API_Gravity"].between(33, 39))
+        & (out["Oil_Viscosity"].between(0.3, 0.9))
+        & (out["Permeability"].between(130, 1000))
+    ).astype(int)
+
+    out["Pass_Chemical"] = (
+        (out["API_Gravity"].between(13, 42.5))
+        & (out["Oil_Viscosity"] <= 6500)
+        & (out["Permeability"] >= 1.8)
+    ).astype(int)
+
+    out["Pass_Hybrid"] = (
+        (out["Pass_Chemical"] == 1)
+        & ((out["Pass_Miscible"] == 1) | (out["Pass_WAG"] == 1))
+    ).astype(int)
+
+    out["Pass_Waterflood"] = 1
+    return out
+
+
+def build_v5_feature_frame(user_input: Dict[str, Any]) -> pd.DataFrame:
+    """Construct the same feature set expected by the V5 pipeline."""
+    record = {
+        "Lithology": lithology_to_workbook_code(user_input.get("Lithology", "Carbonate")),
+        "Permeability": safe_float(user_input.get("Permeability"), 120.0),
+        "Porosity": normalize_percentage_to_fraction(safe_float(user_input.get("Porosity"), 18.0)),
+        "Oil_Viscosity": safe_float(user_input.get("Oil_Viscosity"), 8.0),
+        "Temperature": safe_float(user_input.get("Temperature"), 180.0),
+        "API_Gravity": safe_float(user_input.get("API_Gravity"), 32.0),
+    }
+
+    frame = pd.DataFrame([record])
+    frame = calculate_physical_proxies(frame)
+    frame = build_classical_flags(frame)
+    return frame
+
+
+# ---------------------------------------------------------------------------
+# 4. Model loading (trained weights or fallback mode)
+# ---------------------------------------------------------------------------
+
+@st.cache_resource
+def load_model_bundle() -> Dict[str, Any]:
+    """Load saved artifacts or train the real V5 ensemble from the Excel dataset."""
+    root_dir = Path(__file__).resolve().parent
+
+    artifact_paths = {
+        "lightgbm": find_model_file(root_dir, ["lightgbm_v5.joblib", "lightgbm_v5.pkl", "lightgbm_v5.model"]),
+        "xgboost": find_model_file(root_dir, ["xgboost_v5.joblib", "xgboost_v5.pkl", "xgboost_v5.model"]),
+        "rf": find_model_file(root_dir, ["random_forest_v5.joblib", "random_forest_v5.pkl", "rf_v5.joblib", "rf_v5.pkl"]),
+        "scaler": find_model_file(root_dir, ["v5_scaler.joblib", "v5_scaler.pkl", "scaler.joblib", "scaler.pkl"]),
+        "lithology_encoder": find_model_file(root_dir, ["v5_lithology_encoder.joblib", "lithology_encoder.joblib"]),
+        "target_map": find_model_file(root_dir, ["v5_target_mapping.json", "target_mapping.json"]),
+        "feature_names": find_model_file(root_dir, ["v5_feature_names.json", "feature_names.json"]),
+    }
+
+    loaded = {"status": "training", "warning": ""}
+
+    if joblib is None:
+        loaded["warning"] = "joblib is not installed; training models directly from Excel."
+
+    all_found = all(path is not None for path in artifact_paths.values())
+    if all_found:
+        try:
+            models = {}
+            if artifact_paths["lightgbm"] is not None:
+                models["LightGBM V5"] = joblib.load(artifact_paths["lightgbm"])
+            if artifact_paths["xgboost"] is not None:
+                models["XGBoost"] = joblib.load(artifact_paths["xgboost"])
+            if artifact_paths["rf"] is not None:
+                models["Random Forest"] = joblib.load(artifact_paths["rf"])
+
+            scaler = joblib.load(artifact_paths["scaler"])
+            with open(artifact_paths["target_map"], "r", encoding="utf-8") as f:
+                target_map = json.load(f)
+            with open(artifact_paths["feature_names"], "r", encoding="utf-8") as f:
+                feature_names = json.load(f)
+
+            loaded = {
+                "status": "loaded",
+                "models": models,
+                "scaler": scaler,
+                "lith_encoder": joblib.load(artifact_paths["lithology_encoder"]),
+                "target_map": {int(k): v for k, v in target_map.items()},
+                "feature_names": feature_names,
+                "warning": "",
+            }
+        except Exception as exc:  # pragma: no cover
+            loaded["warning"] = f"Model artifact loading failed: {exc}. Falling back to heuristic mode."
+
+    if loaded.get("status") == "loaded":
+        return loaded
+
+    # The workbook is the training data. Train real models when pre-exported
+    # artifacts are absent; do not silently substitute heuristic probabilities.
+    try:
+        X_raw, y_raw = load_and_clean_data()
+        valid_classes = y_raw.value_counts()
+        valid_classes = valid_classes[valid_classes >= 2].index
+        mask = y_raw.isin(valid_classes)
+        X_raw, y_raw = X_raw.loc[mask].copy(), y_raw.loc[mask].copy()
+
+        lith_encoder = LabelEncoder()
+        lith_encoder.fit(X_raw["Lithology"].astype(str))
+        target_encoder = LabelEncoder()
+        y_encoded = target_encoder.fit_transform(y_raw.astype(str))
+
+        combined = add_physics_features(build_classical_flags(X_raw))
+        combined["Lithology"] = lith_encoder.transform(combined["Lithology"].astype(str))
+        feature_names = combined.columns.tolist()
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            combined, y_encoded, test_size=0.20, random_state=42, stratify=y_encoded
+        )
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+
+        models = {
+            "LightGBM V5": lgb.LGBMClassifier(
+                n_estimators=200, class_weight="balanced", random_state=42,
+                max_depth=6, learning_rate=0.05, verbose=-1,
+            ),
+            "XGBoost": xgb.XGBClassifier(
+                n_estimators=200, random_state=42, max_depth=8,
+                learning_rate=0.1, eval_metric="mlogloss", n_jobs=-1,
+            ),
+            "Random Forest": RandomForestClassifier(
+                n_estimators=200, class_weight="balanced", max_depth=15,
+                random_state=42, n_jobs=-1,
+            ),
+        }
+
+        trained_models = {}
+        metrics = {}
+        for model_name, model in models.items():
+            model.fit(X_train_scaled, y_train)
+            predictions = model.predict(X_test_scaled)
+            trained_models[model_name] = model
+            metrics[model_name] = {
+                "accuracy": accuracy_score(y_test, predictions) * 100,
+                "macro_f1": f1_score(y_test, predictions, average="macro", zero_division=0),
+            }
+
+        return {
+            "status": "trained_from_excel",
+            "models": trained_models,
+            "scaler": scaler,
+            "lith_encoder": lith_encoder,
+            "target_map": {idx: name for idx, name in enumerate(target_encoder.classes_)},
+            "feature_names": feature_names,
+            "metrics": metrics,
+            "warning": "Real models were trained from Screening_Original.xlsx and cached for this session.",
+        }
+    except Exception as exc:
+        return {
+            "status": "fallback",
+            "warning": f"Real model training failed: {exc}",
+        }
+
+
+# ---------------------------------------------------------------------------
+# 5. Fallback probability engine
+# ---------------------------------------------------------------------------
+
+def heuristic_probability_by_rules(user_input: Dict[str, Any]) -> Dict[str, float]:
+    """Generate a safe probability distribution when real model artifacts are missing."""
+    perm = safe_float(user_input.get("Permeability"), 120.0)
+    por = normalize_percentage_to_fraction(safe_float(user_input.get("Porosity"), 18.0))
+    visc = safe_float(user_input.get("Oil_Viscosity"), 8.0)
+    api = safe_float(user_input.get("API_Gravity"), 32.0)
+
+    scores = {name: 0.10 for name in EOR_CLASSES}
+
+    # Dominant tendency heuristics based on the V5 domain rules.
+    if api >= 22 and visc <= 35 and perm >= 1.5 and por >= 0.03:
+        scores["Miscible Gas Injection"] += 0.35
+    if api >= 11 and api <= 35 and visc >= 0.6 and visc <= 592 and perm >= 30:
+        scores["Immiscible Gas Injection"] += 0.30
+    if 30 <= api <= 42 and 0.2 <= visc <= 1.2 and 100 <= perm <= 2000 and por >= 0.10:
+        scores["WAG Injection"] += 0.20
+    if api >= 13 and visc <= 6500 and perm >= 1.8:
+        scores["Chemical EOR"] += 0.35
+    if api >= 22 and visc <= 35 and perm >= 1.5 and por >= 0.03:
+        scores["Hybrid Gas-Chemical"] += 0.10
+    if visc <= 100 and perm >= 10 and por >= 0.10:
+        scores["Secondary Waterflooding"] += 0.15
+
+    # Bias toward hybrid/chemical for moderate-viscosity carbonate reservoirs.
+    if "carbonate" in str(user_input.get("Lithology", "")).lower():
+        scores["Hybrid Gas-Chemical"] += 0.20
+        scores["Chemical EOR"] += 0.15
+
+    # Normalize to probability-like values.
+    total = sum(scores.values())
+    if total <= 0:
+        return {name: 1.0 / len(EOR_CLASSES) for name in EOR_CLASSES}
+    return {name: max(0.0, value / total) for name, value in scores.items()}
+
+
+# ---------------------------------------------------------------------------
+# 6. Ensemble inference with loaded models or fallback
+# ---------------------------------------------------------------------------
+
+def predict_ml_system(user_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a model prediction dictionary for each available model or fallback engine."""
+    model_bundle = load_model_bundle()
+
+    if model_bundle.get("status") not in {"loaded", "trained_from_excel"}:
+        return {
+            "mode": "fallback",
+            "warning": model_bundle.get("warning", "Fallback mode active."),
+            "results": {
+                "Heuristic Engine": {
+                    "prediction": max(heuristic_probability_by_rules(user_input).items(), key=lambda x: x[1])[0],
+                    "probabilities": heuristic_probability_by_rules(user_input),
+                }
+            },
+        }
+
+    # Real model path.
+    feature_frame = build_v5_feature_frame(user_input)
+    feature_names = model_bundle["feature_names"]
+
+    lith_encoder = model_bundle.get("lith_encoder")
+    if lith_encoder is not None and "Lithology" in feature_frame.columns:
+        feature_frame["Lithology"] = lith_encoder.transform(feature_frame["Lithology"].astype(str))
+
+    # Ensure required features exist.
+    for feature in feature_names:
+        if feature not in feature_frame.columns:
+            feature_frame[feature] = 0.0
+
+    feature_frame = feature_frame[feature_names]
+    X_scaled = model_bundle["scaler"].transform(feature_frame)
+
+    results = {}
+    for model_name, model in model_bundle["models"].items():
+        try:
+            if hasattr(model, "predict_proba"):
+                proba = model.predict_proba(X_scaled)[0]
+            else:
+                raise AttributeError("Model does not expose predict_proba.")
+
+            target_mapping = model_bundle["target_map"]
+            probs = {target_mapping[int(idx)]: float(prob) for idx, prob in enumerate(proba)}
+            predicted = max(probs.items(), key=lambda x: x[1])[0]
+            results[model_name] = {
+                "prediction": predicted,
+                "probabilities": probs,
+            }
+        except Exception as exc:
+            results[model_name] = {
+                "prediction": "Unavailable",
+                "probabilities": {cls: 0.0 for cls in EOR_CLASSES},
+                "error": str(exc),
+            }
+
+    return {"mode": "trained" if model_bundle.get("status") == "trained_from_excel" else "loaded", "warning": model_bundle.get("warning", ""), "results": results}
+
+
+# ---------------------------------------------------------------------------
+# 7. Dashboard visuals
+# ---------------------------------------------------------------------------
+
+def plot_probability_chart(probabilities: Dict[str, float], title: str) -> go.Figure:
+    labels = list(probabilities.keys())
+    values = list(probabilities.values())
+    fig = go.Figure(data=[go.Bar(x=labels, y=values, marker_color="royalblue")])
+    fig.update_layout(
+        title=title,
+        xaxis_title="EOR Method",
+        yaxis_title="Probability",
+        template="plotly_white",
+        height=420,
+        margin=dict(l=20, r=20, t=40, b=80),
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# 8. Main app layout
+# ---------------------------------------------------------------------------
+
+def render_kpi_cards(inputs: Dict[str, Any]) -> None:
+    """Render key physical proxy metrics as KPI cards."""
+    record = {
+        "Permeability": safe_float(inputs.get("Permeability"), 120.0),
+        "Porosity": normalize_percentage_to_fraction(safe_float(inputs.get("Porosity"), 18.0)),
+        "Oil_Viscosity": safe_float(inputs.get("Oil_Viscosity"), 8.0),
+    }
+    mobility = record["Permeability"] / (record["Oil_Viscosity"] + 1e-6)
+    rqi = 0.0314 * math.sqrt(record["Permeability"] / (record["Porosity"] + 1e-6))
+    phi_z = record["Porosity"] / (1.0 - record["Porosity"] + 1e-6)
+    fzi = rqi / (phi_z + 1e-6)
+
+    kpi_cols = st.columns(3)
+    kpi_cols[0].metric("Mobility Proxy", f"{mobility:.3f}")
+    kpi_cols[1].metric("RQI", f"{rqi:.3f}")
+    kpi_cols[2].metric("FZI", f"{fzi:.3f}")
+
+
+# ---------------------------------------------------------------------------
+# 9. Streamlit application entry
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    with st.sidebar:
+        language_name = st.selectbox("Language / Langue / اللغة", list(LANGUAGES), index=0)
+    language = LANGUAGES[language_name]
+    apply_language_css(language)
+
+    flag_b64 = load_flag_image_base64("algeria-flag.png")
+    if flag_b64:
+        flag_html = f"<img class='dz-flag-img' src='data:image/png;base64,{flag_b64}' alt='Algeria flag' />"
+    else:
+        # Fallback if the PNG isn't found next to app.py, so the header
+        # still renders instead of breaking.
+        flag_html = "🇩🇿"
+    st.markdown(
+        f"<div class='eor-brand'>{flag_html}<h1>{t(language, 'title')}</h1></div>",
+        unsafe_allow_html=True,
+    )
+    st.caption(t(language, "subtitle"))
+
+    with st.sidebar:
+        st.header(t(language, "inputs"))
+        with st.expander(t(language, "guide"), expanded=False):
+            st.write(t(language, "guide_text"))
+            st.dataframe(GEOLOGICAL_LITHOLOGY_GUIDE, hide_index=True, use_container_width=True)
+
+        lithology_options = ["Carbonate", "Carbonate / Dolomite", "Carbonate / Limestone", "Sandstone", "Sandstone / Quartzite", "Mixed Clastic", "Unknown"]
+        lithology = st.selectbox(t(language, "lithology"), lithology_options, index=0)
+
+        permeability = st.number_input(f"{t(language, 'permeability')} (mD)", value=120.0, min_value=0.1, step=1.0)
+        porosity_pct = st.number_input(f"{t(language, 'porosity')} (%)", value=18.0, min_value=0.1, max_value=60.0, step=0.1)
+
+        depth_unit = st.selectbox(f"{t(language, 'depth')} unit", ["m", "ft"])
+        depth = st.number_input(f"{t(language, 'depth')} ({depth_unit})", value=1828.8 if depth_unit == "m" else 6000.0, min_value=1.0, step=100.0)
+        pressure_unit = st.selectbox(f"{t(language, 'pressure')} unit", ["bar", "psi", "MPa"])
+        pressure = st.number_input(f"{t(language, 'pressure')} ({pressure_unit})", value=172.37 if pressure_unit == "bar" else (2500.0 if pressure_unit == "psi" else 17.24), min_value=0.1, step=10.0)
+        mmp = st.number_input(f"MMP ({pressure_unit}, optional)", value=0.0, min_value=0.0, step=5.0 if pressure_unit == "bar" else 50.0, help="Enter 0 when MMP is unavailable; depth will be used only as a proxy for miscible-gas screening.")
+        mmp_psi = mmp if pressure_unit == "psi" else mmp * {"bar": 14.5037738, "MPa": 145.037738}.get(pressure_unit, 1.0)
+        temperature_unit = st.selectbox(f"{t(language, 'temperature')} unit", ["°C", "°F"])
+        temperature = st.number_input(f"{t(language, 'temperature')} ({temperature_unit})", value=82.22 if temperature_unit == "°C" else 180.0, min_value=-50.0, step=1.0)
+        viscosity_unit = st.selectbox(f"{t(language, 'viscosity')} unit", ["cP", "mPa·s"])
+        viscosity = st.number_input(f"{t(language, 'viscosity')} ({viscosity_unit})", value=8.0, min_value=0.001, step=0.1)
+        gravity_unit = st.selectbox(f"{t(language, 'gravity')} unit", ["°API", "Specific Gravity (SG)"])
+        gravity = st.number_input(f"{t(language, 'gravity')} ({gravity_unit})", value=32.0 if gravity_unit == "°API" else 0.865, min_value=0.01, step=0.1)
+
+    field_units = convert_to_field_units(depth, depth_unit, pressure, pressure_unit, temperature, temperature_unit, viscosity, viscosity_unit, gravity, gravity_unit)
+    input_data = {
+        "Lithology": lithology, "Permeability": permeability, "Porosity": porosity_pct,
+        "Oil_Viscosity": field_units["Oil_Viscosity"], "Temperature": field_units["Temperature"],
+        "API_Gravity": field_units["API_Gravity"], "Depth_ft": field_units["Depth_ft"], "Pressure_psi": field_units["Pressure_psi"],
+    }
+
+    st.subheader(t(language, "proxies"))
+    render_kpi_cards(input_data)
+    st.caption(f"{t(language, 'pressure_note')} Normalized: {field_units['Depth_ft']:.1f} ft | {field_units['Pressure_psi']:.1f} psi | {field_units['Temperature']:.1f} °F | {field_units['Oil_Viscosity']:.3f} cP | {field_units['API_Gravity']:.2f} °API")
+
+    classical_results = classical_screening(lithology, permeability, normalize_percentage_to_fraction(porosity_pct), field_units["Oil_Viscosity"], field_units["Temperature"], field_units["API_Gravity"], field_units["Depth_ft"], field_units["Pressure_psi"], mmp_psi if mmp_psi > 0 else None)
+    model_result = predict_ml_system(input_data)
+    tab1, tab2, tab3 = st.tabs([t(language, "engine1_title"), t(language, "ml"), t(language, "consensus")])
+
+    with tab1:
+        st.subheader(t(language, "engine1_title"))
+        st.caption(t(language, "screening_caption"))
+        st.info(t(language, "engine1_disclaimer"))
+        for method_name, result in classical_results.items():
+            status = result["status"]
+            color = {"PASS": "#2ca02c", "MARGINAL": "#ff7f0e", "FAIL": "#d62728"}.get(status, "#4c78a8")
+            st.markdown(f"<h4 style='color:{color};'>{method_name}: {status}</h4>", unsafe_allow_html=True)
+            if result["violations"]:
+                st.warning(f"{t(language, 'violations')}: {', '.join(result['violations'])}")
+            with st.expander(f"{t(language, 'method_details')}: {method_name}"):
+                st.dataframe(pd.DataFrame([{"Parameter": k, "Status": v} for k, v in result["parameters"].items()]), hide_index=True, use_container_width=True)
+
+    with tab2:
+        st.subheader(t(language, "ml"))
+        if model_result["mode"] == "trained":
+            st.success("Real ensemble models trained from Screening_Original.xlsx are active.")
+        elif model_result.get("warning"):
+            st.warning(t(language, "fallback_warning"))
+        for model_name, info in model_result["results"].items():
+            st.markdown(f"### {model_name}")
+            st.metric(t(language, "predicted"), info["prediction"])
+            st.plotly_chart(plot_probability_chart(info["probabilities"], f"{t(language, 'probability')} - {model_name}"), use_container_width=True)
+
+    with tab3:
+        st.subheader(t(language, "consensus"))
+        results = model_result["results"]
+        consensus_scores = {method: float(np.mean([item["probabilities"].get(method, 0.0) for item in results.values()])) for method in EOR_CLASSES}
+
+        # Display Engine B before applying any Engine A rule weighting.
+        st.markdown(f"### {t(language, 'ml_only_result')}")
+        st.caption("These probabilities come from Engine B only; Engine A has not modified them.")
+        ml_only_rank = sorted(consensus_scores.items(), key=lambda item: item[1], reverse=True)
+        st.dataframe(
+            pd.DataFrame([
+                {"Rank": index, "EOR Method": method, t(language, "ml_mean"): f"{score:.1%}"}
+                for index, (method, score) in enumerate(ml_only_rank, start=1)
+            ]),
+            hide_index=True,
+            use_container_width=True,
+        )
+        ml_only_fig = go.Figure(data=[go.Bar(x=[item[0] for item in ml_only_rank], y=[item[1] for item in ml_only_rank], marker_color="#3366cc")])
+        ml_only_fig.update_layout(title=t(language, "ml_only_result"), xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"), template="plotly_white", height=380, margin=dict(l=20, r=20, t=40, b=100))
+        st.plotly_chart(ml_only_fig, use_container_width=True)
+
+        st.markdown(f"### {t(language, 'combined_result')}")
+        st.caption("Engine A rule status is now applied to the standalone Engine B probabilities.")
+        combined_rank = []
+        for method_name in EOR_CLASSES:
+            status = classical_results[method_name]["status"]
+            weight = {"PASS": 1.0, "MARGINAL": 0.7, "FAIL": 0.2}[status]
+            combined_rank.append((method_name, consensus_scores[method_name] * weight, status))
+        combined_rank.sort(key=lambda item: item[1], reverse=True)
+        for method_name, score, status in combined_rank:
+            color = {"PASS": "#2ca02c", "MARGINAL": "#ff7f0e", "FAIL": "#d62728"}[status]
+            st.markdown(f"<div style='display:flex;align-items:center;gap:12px;margin:8px 0;'><b style='width:220px'>{method_name}</b><span style='width:90px;background:{color};color:white;padding:4px;border-radius:6px;text-align:center'>{status}</span><div style='flex:1;background:#e9ecef;height:20px'><div style='width:{score * 100:.1f}%;height:100%;background:{color}'></div></div><b style='width:60px;text-align:right'>{score * 100:.1f}%</b></div>", unsafe_allow_html=True)
+        fig = go.Figure(data=[go.Bar(x=[x[0] for x in combined_rank], y=[x[1] for x in combined_rank])])
+        fig.update_layout(title=t(language, "combined"), xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"), template="plotly_white", height=420, margin=dict(l=20, r=20, t=40, b=100))
+        st.plotly_chart(fig, use_container_width=True)
+
+
+if __name__ == "__main__":
+    main()
+
