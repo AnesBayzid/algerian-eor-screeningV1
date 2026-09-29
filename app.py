@@ -13,6 +13,7 @@ UI remains usable while the user trains or saves the real models.
 
 from __future__ import annotations
 
+import base64
 import json
 import math
 import os
@@ -157,16 +158,34 @@ def t(language: str, key: str) -> str:
     return TRANSLATIONS.get(language, TRANSLATIONS["en"]).get(key, key)
 
 
+@st.cache_data(show_spinner=False)
+def load_flag_data_uri() -> str:
+    flag_path = Path(__file__).resolve().parent / "algeria-flag.png"
+    if not flag_path.exists():
+        return ""
+    encoded = base64.b64encode(flag_path.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
+def build_flag_html() -> str:
+    data_uri = load_flag_data_uri()
+    if data_uri:
+        return f"<img class='dz-flag' src='{data_uri}' alt='Algeria' />"
+    return "<div class='dz-flag-fallback'></div>"
+
+
 def apply_language_css(language: str) -> None:
     direction = "rtl" if language == "ar" else "ltr"
     st.markdown(
         f"""<style>
         html, body, [data-testid="stAppViewContainer"] {{ direction: {direction}; }}
         .eor-brand {{ display:flex; align-items:center; gap:12px; margin-bottom:12px; }}
-        .dz-flag {{ width:42px; height:28px; border:1px solid #777; background:linear-gradient(90deg,#006233 0 50%,#fff 50%); position:relative; overflow:hidden; }}
-        .dz-flag:before {{ content:''; position:absolute; width:14px; height:14px; border-radius:50%; background:#d21034; left:15px; top:6px; }}
-        .dz-flag:after {{ content:''; position:absolute; width:14px; height:14px; border-radius:50%; background:#fff; left:19px; top:4px; box-shadow:6px 7px 0 -4px #d21034; }}
+        .dz-flag {{ width:42px; height:28px; border:1px solid #777; border-radius:3px; object-fit:cover; display:block; }}
+        .dz-flag-fallback {{ width:42px; height:28px; border:1px solid #777; background:linear-gradient(90deg,#006233 0 50%,#fff 50%); position:relative; overflow:hidden; }}
+        .dz-flag-fallback:before {{ content:''; position:absolute; width:14px; height:14px; border-radius:50%; background:#d21034; left:15px; top:6px; }}
+        .dz-flag-fallback:after {{ content:''; position:absolute; width:14px; height:14px; border-radius:50%; background:#fff; left:19px; top:4px; box-shadow:6px 7px 0 -4px #d21034; }}
         .eor-brand h1 {{ margin:0; font-size:1.7rem; }}
+        header a[href*="github.com"], header [data-testid*="github" i] {{ display:none !important; }}
         </style>""",
         unsafe_allow_html=True,
     )
@@ -812,7 +831,7 @@ def main() -> None:
     apply_language_css(language)
 
     st.markdown(
-        f"<div class='eor-brand'><div class='dz-flag'></div><h1>{t(language, 'title')}</h1></div>",
+        f"<div class='eor-brand'>{build_flag_html()}<h1>{t(language, 'title')}</h1></div>",
         unsafe_allow_html=True,
     )
     st.caption(t(language, "subtitle"))
