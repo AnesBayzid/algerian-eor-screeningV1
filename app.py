@@ -18,10 +18,8 @@ import json
 import math
 import os
 import warnings
-from html import escape
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence
-from urllib.parse import quote
+from typing import Any, Dict, Iterable, List
 
 import numpy as np
 import pandas as pd
@@ -105,17 +103,6 @@ TRANSLATIONS = {
         "fallback_warning": "No trained model files were found. Results are heuristic placeholders, not validated model predictions.",
         "probability": "Probability", "eor_method": "EOR Method", "combined": "Combined Technical Confidence",
         "pressure_note": "Depth and pressure are displayed and normalized, but current classical rules do not yet apply formation-pressure or MMP correlations.",
-        "recommendation": "Screening Verdict", "confidence": "Combined technical confidence",
-        "reservoir_properties": "Reservoir Properties", "advanced_inputs": "Depth, Pressure & MMP",
-        "fluid_properties": "Fluid Properties", "optional": "optional", "normalized": "Normalized",
-        "depth_unit": "Depth unit", "pressure_unit": "Pressure unit", "temperature_unit": "Temperature unit",
-        "viscosity_unit": "Viscosity unit", "gravity_unit": "Gravity unit",
-        "ml_engine_note": "These probabilities come from Engine B only; Engine A has not modified them.",
-        "combined_note": "Engine A rule status is now applied to the standalone Engine B probabilities.",
-        "screening_caption": "PASS = ideal range, MARGINAL = near boundary, FAIL = outside the screening range.",
-        "method_count": "6 EOR methods screened", "dual_engine": "Dual engine",
-        "engine1_tab": "Engine 1: Classical",
-        "model_confidence": "Model probability distribution",
     },
     "fr": {
         "title": "Suite algérienne d'aide à la décision EOR",
@@ -136,18 +123,6 @@ TRANSLATIONS = {
         "fallback_warning": "Aucun modèle entraîné trouvé. Les résultats sont heuristiques et non validés.",
         "probability": "Probabilité", "eor_method": "Méthode EOR", "combined": "Confiance technique combinée",
         "pressure_note": "La profondeur et la pression sont normalisées, mais les règles actuelles n'appliquent pas encore les corrélations de pression de formation ou de MMP.",
-        "recommendation": "Verdict de criblage", "confidence": "Confiance technique combinée",
-        "reservoir_properties": "Propriétés du réservoir", "advanced_inputs": "Profondeur, pression et MMP",
-        "fluid_properties": "Propriétés du fluide", "optional": "optionnel", "normalized": "Normalisé",
-        "depth_unit": "Unité de profondeur", "pressure_unit": "Unité de pression",
-        "temperature_unit": "Unité de température", "viscosity_unit": "Unité de viscosité",
-        "gravity_unit": "Unité de gravité",
-        "ml_engine_note": "Ces probabilités proviennent uniquement du moteur B ; le moteur A ne les a pas modifiées.",
-        "combined_note": "Le statut des règles du moteur A est maintenant appliqué aux probabilités du moteur B seul.",
-        "screening_caption": "PASS = plage idéale, MARGINAL = proche de la limite, FAIL = hors plage.",
-        "method_count": "6 méthodes EOR évaluées", "dual_engine": "Double moteur",
-        "engine1_tab": "Moteur 1 : Classique",
-        "model_confidence": "Distribution de probabilité du modèle",
     },
     "ar": {
         "title": "منصة دعم قرار الاستخلاص المعزز للنفط في الجزائر",
@@ -168,18 +143,6 @@ TRANSLATIONS = {
         "fallback_warning": "لم يتم العثور على نموذج مدرب. النتائج تقريبية وليست تنبؤات نموذج معتمد.",
         "probability": "الاحتمال", "eor_method": "طريقة EOR", "combined": "الثقة التقنية المجمعة",
         "pressure_note": "تم توحيد العمق والضغط، لكن القواعد الحالية لا تطبق بعد علاقات ضغط المكمن أو MMP.",
-        "recommendation": "حكم الفحص", "confidence": "الثقة التقنية المجمعة",
-        "reservoir_properties": "خصائص المكمن", "advanced_inputs": "العمق والضغط و MMP",
-        "fluid_properties": "خصائص السائل", "optional": "اختياري", "normalized": "القيم الموحّدة",
-        "depth_unit": "وحدة العمق", "pressure_unit": "وحدة الضغط",
-        "temperature_unit": "وحدة الحرارة", "viscosity_unit": "وحدة اللزوجة",
-        "gravity_unit": "وحدة الكثافة",
-        "ml_engine_note": "هذه الاحتمالات تأتي من المحرك B فقط؛ لم يعدّلها المحرك A.",
-        "combined_note": "تم الآن تطبيق حالة قواعد المحرك A على احتمالات المحرك B وحده.",
-        "screening_caption": "PASS = النطاق المثالي، MARGINAL = قريب من الحد، FAIL = خارج النطاق.",
-        "method_count": "6 طرق EOR مقيّمة", "dual_engine": "محركان",
-        "engine1_tab": "المحرك 1: الكلاسيكي",
-        "model_confidence": "توزيع احتمال النموذج",
     },
 }
 
@@ -209,8 +172,130 @@ def load_flag_image_base64(filename: str = "algeria-flag.png") -> str | None:
 
 
 def apply_language_css(language: str) -> None:
-    """Install the design system and the writing direction for the active language."""
-    mount(language)
+    direction = "rtl" if language == "ar" else "ltr"
+    st.markdown(
+        f"""<style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+        /* ---- Design tokens ------------------------------------------- */
+        :root {{
+            --eor-bg: #0B1220;
+            --eor-panel: #131C2B;
+            --eor-panel-raised: #182338;
+            --eor-border: #26344A;
+            --eor-text: #E8EDF4;
+            --eor-text-muted: #8CA0B8;
+            --eor-accent: #2E8B6B;
+            --eor-accent-strong: #46B58A;
+            --eor-pass: #37B679;
+            --eor-marginal: #E8A33D;
+            --eor-fail: #E5484D;
+            --eor-radius: 8px;
+            --eor-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+        }}
+
+        html, body, [data-testid="stAppViewContainer"] {{ direction: {direction}; }}
+
+        /* ---- Header / brand -------------------------------------------- */
+        .eor-header {{
+            display:flex; flex-direction:column; gap:2px;
+            padding-bottom:14px; margin-bottom:18px;
+            border-bottom:1px solid var(--eor-border);
+        }}
+        .eor-brand {{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }}
+        .dz-flag-img {{ width:38px; height:26px; object-fit:cover; border:1px solid var(--eor-border); border-radius:3px; display:block; flex-shrink:0; }}
+        .eor-brand h1 {{ margin:0; font-size:1.5rem; font-weight:600; letter-spacing:-0.01em; line-height:1.25; }}
+        .eor-subtitle {{ color:var(--eor-text-muted); font-size:0.92rem; margin:0; }}
+
+        /* ---- Sidebar section labels ------------------------------------ */
+        .eor-section-label {{
+            display:flex; align-items:center; gap:6px;
+            font-size:0.78rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em;
+            color:var(--eor-text-muted); margin:18px 0 6px 0;
+        }}
+        .eor-section-label:first-of-type {{ margin-top:4px; }}
+
+        /* ---- KPI / metric cards ------------------------------------------ */
+        [data-testid="stMetric"] {{
+            background:var(--eor-panel);
+            border:1px solid var(--eor-border);
+            border-radius:var(--eor-radius);
+            padding:14px 16px 12px 16px;
+        }}
+        [data-testid="stMetricLabel"] {{ color:var(--eor-text-muted); font-size:0.8rem; }}
+        [data-testid="stMetricValue"] {{ font-family:var(--eor-mono); font-size:1.5rem; }}
+
+        /* ---- Status pills ------------------------------------------------ */
+        .eor-status-row {{
+            display:flex; align-items:center; justify-content:space-between; gap:12px;
+            padding:10px 2px; border-bottom:1px solid var(--eor-border);
+            flex-wrap:wrap;
+        }}
+        .eor-status-row:last-child {{ border-bottom:none; }}
+        .eor-status-name {{ display:flex; align-items:center; gap:8px; font-weight:500; }}
+        .eor-pill {{
+            display:inline-flex; align-items:center; gap:4px;
+            font-family:var(--eor-mono); font-size:0.72rem; font-weight:600;
+            padding:3px 10px; border-radius:999px; white-space:nowrap;
+        }}
+        .eor-pill.pass {{ background:rgba(55,182,121,0.16); color:var(--eor-pass); }}
+        .eor-pill.marginal {{ background:rgba(232,163,61,0.16); color:var(--eor-marginal); }}
+        .eor-pill.fail {{ background:rgba(229,72,77,0.16); color:var(--eor-fail); }}
+
+        /* ---- Combined-result bars (responsive, no fixed px widths) ------- */
+        .eor-combined-row {{
+            display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+            padding:8px 0;
+        }}
+        .eor-combined-name {{ flex:1 1 180px; min-width:140px; font-weight:500; }}
+        .eor-combined-bar-wrap {{ flex:3 1 220px; min-width:140px; background:var(--eor-panel-raised); height:10px; border-radius:6px; overflow:hidden; }}
+        .eor-combined-bar-fill {{ height:100%; border-radius:6px; }}
+        .eor-combined-pct {{ flex:0 0 56px; text-align:right; font-family:var(--eor-mono); font-size:0.85rem; }}
+
+        /* ---- Numeric / mono utility -------------------------------------- */
+        .eor-mono {{ font-family:var(--eor-mono); }}
+
+        /* ---- Mobile tightening -------------------------------------------- */
+        @media (max-width: 640px) {{
+            .eor-brand h1 {{ font-size:1.2rem; }}
+            .eor-subtitle {{ font-size:0.82rem; }}
+            .eor-combined-name {{ flex-basis:100%; }}
+            .eor-combined-pct {{ flex:0 0 auto; }}
+        }}
+
+        /* Hide the Streamlit Community Cloud "View source on GitHub" button.
+           This button is sent to the page by the Community Cloud host
+           itself (not part of the app's own toolbar), so client.toolbarMode
+           has no effect on it - CSS is the only lever available here.
+           The icon (epm40z21) sits two levels deep inside the button, not
+           as a direct child, so this must use a plain descendant match
+           (":has(div...)"), not a direct-child match (":has(> div...)"),
+           or it silently fails to match the button at all.
+           If a future Streamlit/Community Cloud update changes this hashed
+           class name, re-inspect the icon (element picker -> Copy element)
+           and swap epm40z21 below for the new one. */
+        button[data-testid="stBaseButton-header"]:has(
+            div[data-testid="stToolbarActionButtonIcon"].epm40z21
+        ) {{
+            display: none !important;
+        }}
+
+        </style>""",
+        unsafe_allow_html=True,
+    )
+
+
+def status_pill_html(status: str) -> str:
+    """Return a small colored pill span for PASS / MARGINAL / FAIL.
+
+    Uses Streamlit's own ":material/xxx:" markdown shortcode for the icon
+    (rather than a hand-guessed CSS class/font name) so the icon renders
+    through Streamlit's existing, correct icon pipeline; the surrounding
+    <span> only supplies the pill's background/padding/color.
+    """
+    key = {"PASS": "pass", "MARGINAL": "marginal", "FAIL": "fail"}.get(status, "pass")
+    icon = {"PASS": "check_circle", "MARGINAL": "warning", "FAIL": "cancel"}.get(status, "check_circle")
+    return f"<span class='eor-pill {key}'>:material/{icon}: {status}</span>"
 
 
 def convert_to_field_units(depth: float, depth_unit: str, pressure: float, pressure_unit: str,
@@ -805,27 +890,30 @@ def predict_ml_system(user_input: Dict[str, Any]) -> Dict[str, Any]:
 # 7. Dashboard visuals
 # ---------------------------------------------------------------------------
 
-METHOD_ICONS: Dict[str, str] = {
-    "Miscible Gas Injection": "drop",
-    "Immiscible Gas Injection": "waves",
-    "WAG Injection": "merge",
-    "Chemical EOR": "flask",
-    "Hybrid Gas-Chemical": "target",
-    "Secondary Waterflooding": "droplet",
-}
-
-
-def plot_probability_chart(probabilities: Dict[str, float], highlight: Optional[str] = None) -> go.Figure:
-    """Horizontal probability bars in the design-system palette."""
-    return probability_figure(probabilities, highlight=highlight)
+def plot_probability_chart(probabilities: Dict[str, float], title: str) -> go.Figure:
+    labels = list(probabilities.keys())
+    values = list(probabilities.values())
+    fig = go.Figure(data=[go.Bar(x=labels, y=values, marker_color="#2E8B6B")])
+    fig.update_layout(
+        title=title,
+        xaxis_title="EOR Method",
+        yaxis_title="Probability",
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="IBM Plex Sans, sans-serif", color="#E8EDF4"),
+        height=420,
+        margin=dict(l=20, r=20, t=40, b=80),
+    )
+    return fig
 
 
 # ---------------------------------------------------------------------------
 # 8. Main app layout
 # ---------------------------------------------------------------------------
 
-def physical_proxies(inputs: Dict[str, Any]) -> Dict[str, float]:
-    """Compute the domain proxy metrics shown above the screening engines."""
+def render_kpi_cards(inputs: Dict[str, Any]) -> None:
+    """Render key physical proxy metrics as KPI cards."""
     record = {
         "Permeability": safe_float(inputs.get("Permeability"), 120.0),
         "Porosity": normalize_percentage_to_fraction(safe_float(inputs.get("Porosity"), 18.0)),
@@ -835,243 +923,11 @@ def physical_proxies(inputs: Dict[str, Any]) -> Dict[str, float]:
     rqi = 0.0314 * math.sqrt(record["Permeability"] / (record["Porosity"] + 1e-6))
     phi_z = record["Porosity"] / (1.0 - record["Porosity"] + 1e-6)
     fzi = rqi / (phi_z + 1e-6)
-    return {"Mobility Proxy": mobility, "RQI": rqi, "FZI": fzi}
 
-
-def render_kpi_cards(inputs: Dict[str, Any]) -> None:
-    """Render the physical proxy metrics as responsive KPI cards."""
-    proxies = physical_proxies(inputs)
-    hints = {
-        "Mobility Proxy": "k / µ",
-        "RQI": "0.0314 · √(k/φ)",
-        "FZI": "RQI / φz",
-    }
-    icons = {"Mobility Proxy": "waves", "RQI": "trend", "FZI": "grid"}
-    render(
-        kpi_grid(
-            [
-                {
-                    "icon": icons[label],
-                    "label": label,
-                    "value": f"{value:.3f}",
-                    "hint": hints[label],
-                }
-                for label, value in proxies.items()
-            ]
-        )
-    )
-
-
-def render_language_selector() -> str:
-    with st.sidebar:
-        selected = st.pills(
-            "Language / Langue / اللغة",
-            list(LANGUAGES),
-            default=list(LANGUAGES)[0],
-            selection_mode="single",
-            label_visibility="collapsed",
-            width="stretch",
-        )
-    return LANGUAGES[selected or list(LANGUAGES)[0]]
-
-
-def render_input_panel(language: str) -> Dict[str, Any]:
-    """Collect reservoir inputs in a mobile-first, progressively disclosed form."""
-    with st.sidebar:
-        render(section_header("sliders", t(language, "inputs")))
-
-        with st.expander(t(language, "guide"), expanded=False):
-            st.write(t(language, "guide_text"))
-            st.dataframe(GEOLOGICAL_LITHOLOGY_GUIDE, hide_index=True, width="stretch")
-
-        render(group_label("layers", t(language, "reservoir_properties")))
-        lithology_options = [
-            "Carbonate", "Carbonate / Dolomite", "Carbonate / Limestone",
-            "Sandstone", "Sandstone / Quartzite", "Mixed Clastic", "Unknown",
-        ]
-        lithology = st.selectbox(t(language, "lithology"), lithology_options, index=0)
-        permeability = st.number_input(
-            f"{t(language, 'permeability')} (mD)", value=120.0, min_value=0.1, step=1.0
-        )
-        porosity_pct = st.number_input(
-            f"{t(language, 'porosity')} (%)", value=18.0, min_value=0.1, max_value=60.0, step=0.1
-        )
-
-        render(group_label("droplet", t(language, "fluid_properties")))
-        temperature_unit = st.selectbox(t(language, "temperature_unit"), ["°C", "°F"])
-        temperature = st.number_input(
-            f"{t(language, 'temperature')} ({temperature_unit})",
-            value=82.22 if temperature_unit == "°C" else 180.0,
-            min_value=-50.0,
-            step=1.0,
-        )
-        viscosity_unit = st.selectbox(t(language, "viscosity_unit"), ["cP", "mPa·s"])
-        viscosity = st.number_input(
-            f"{t(language, 'viscosity')} ({viscosity_unit})",
-            value=8.0, min_value=0.001, step=0.1,
-        )
-        gravity_unit = st.selectbox(t(language, "gravity_unit"), ["°API", "Specific Gravity (SG)"])
-        gravity = st.number_input(
-            f"{t(language, 'gravity')} ({gravity_unit})",
-            value=32.0 if gravity_unit == "°API" else 0.865,
-            min_value=0.01,
-            step=0.1,
-        )
-
-        with st.expander(t(language, "advanced_inputs"), expanded=False):
-            depth_unit = st.selectbox(t(language, "depth_unit"), ["m", "ft"])
-            depth = st.number_input(
-                f"{t(language, 'depth')} ({depth_unit})",
-                value=1828.8 if depth_unit == "m" else 6000.0, min_value=1.0, step=100.0,
-            )
-            pressure_unit = st.selectbox(t(language, "pressure_unit"), ["bar", "psi", "MPa"])
-            pressure = st.number_input(
-                f"{t(language, 'pressure')} ({pressure_unit})",
-                value=172.37 if pressure_unit == "bar" else (2500.0 if pressure_unit == "psi" else 17.24),
-                min_value=0.1, step=10.0,
-            )
-            mmp = st.number_input(
-                f"MMP ({pressure_unit}, {t(language, 'optional')})",
-                value=0.0, min_value=0.0,
-                step=5.0 if pressure_unit == "bar" else 50.0,
-                help="Enter 0 when MMP is unavailable; depth will be used only as a proxy for miscible-gas screening.",
-            )
-
-    mmp_psi = mmp if pressure_unit == "psi" else mmp * {"bar": 14.5037738, "MPa": 145.037738}.get(pressure_unit, 1.0)
-    field_units = convert_to_field_units(
-        depth, depth_unit, pressure, pressure_unit, temperature, temperature_unit,
-        viscosity, viscosity_unit, gravity, gravity_unit,
-    )
-    return {
-        "Lithology": lithology,
-        "Permeability": permeability,
-        "Porosity": porosity_pct,
-        "Oil_Viscosity": field_units["Oil_Viscosity"],
-        "Temperature": field_units["Temperature"],
-        "API_Gravity": field_units["API_Gravity"],
-        "Depth_ft": field_units["Depth_ft"],
-        "Pressure_psi": field_units["Pressure_psi"],
-        "MMP_psi": mmp_psi,
-    }
-
-
-def render_header(language: str) -> None:
-    render(
-        hero_header(
-            t(language, "title"),
-            t(language, "subtitle"),
-            load_flag_image_base64("algeria-flag.png"),
-            [
-                {"icon": "scales", "text": t(language, "classical")},
-                {"icon": "cpu", "text": t(language, "ml")},
-                {"icon": "filter", "text": t(language, "method_count")},
-            ],
-        )
-    )
-
-
-def render_engine_one(language: str, classical_results: Dict[str, Dict[str, Any]]) -> None:
-    render(section_header("scales", t(language, "engine1_title")))
-    st.caption(t(language, "screening_caption"))
-    render(callout(t(language, "engine1_disclaimer"), "info", "shield"))
-    for method_name, result in classical_results.items():
-        render(
-            status_card(
-                method_name,
-                result["status"],
-                result["violations"],
-                icon_name=METHOD_ICONS.get(method_name, "flask"),
-                violations_label=t(language, "violations"),
-            )
-        )
-        with st.expander(f"{t(language, 'method_details')}: {method_name}"):
-            render(parameter_table(result["parameters"]))
-
-
-def render_engine_two(language: str, model_result: Dict[str, Any]) -> None:
-    render(section_header("cpu", t(language, "ml")))
-    if model_result["mode"] == "trained":
-        render(
-            callout(
-                "Real ensemble models trained from Screening_Original.xlsx are active.", "ok", "check"
-            )
-        )
-    elif model_result.get("warning"):
-        render(callout(t(language, "fallback_warning"), "warn", "alert"))
-
-    for model_name, info in model_result["results"].items():
-        render(model_card(model_name, info["prediction"], t(language, "predicted")))
-        render(column_header(t(language, "eor_method"), t(language, "probability")))
-        show_figure(
-            plot_probability_chart(info["probabilities"], highlight=info["prediction"]),
-            key=f"model-{model_name}",
-        )
-
-
-def consensus_scores(model_result: Dict[str, Any]) -> Dict[str, float]:
-    """Mean probability of every method across the available ML models."""
-    results = model_result["results"]
-    return {
-        method: float(
-            np.mean([item["probabilities"].get(method, 0.0) for item in results.values()])
-        )
-        for method in EOR_CLASSES
-    }
-
-
-def combined_ranking(
-    scores: Dict[str, float], classical_results: Dict[str, Dict[str, Any]]
-) -> List[tuple]:
-    """Engine A rule status weighted onto the standalone Engine B probabilities."""
-    combined = []
-    for method_name in EOR_CLASSES:
-        status = classical_results[method_name]["status"]
-        weight = {"PASS": 1.0, "MARGINAL": 0.7, "FAIL": 0.2}[status]
-        combined.append((method_name, scores[method_name] * weight, status))
-    combined.sort(key=lambda item: item[1], reverse=True)
-    return combined
-
-
-def render_consensus(
-    language: str,
-    combined: List[tuple],
-    ml_only_rank: List[tuple],
-) -> None:
-    render(section_header("target", t(language, "consensus")))
-
-    render(
-        section_header(
-            "cpu", t(language, "ml_only_result"), subtitle=t(language, "ml_engine_note"), sub=True
-        )
-    )
-    render(column_header(t(language, "eor_method"), t(language, "ml_mean")))
-    render(ranking_list([{"method": method, "value": score} for method, score in ml_only_rank]))
-
-    render(
-        section_header(
-            "merge", t(language, "combined_result"), subtitle=t(language, "combined_note"), sub=True
-        )
-    )
-    render(column_header(t(language, "eor_method"), t(language, "combined")))
-    render(
-        ranking_list(
-            [{"method": method, "value": score} for method, score, _ in combined],
-            show_status=True,
-            statuses={method: status for method, _, status in combined},
-        )
-    )
-
-    render(
-        section_header(
-            "chartArea", t(language, "combined"), subtitle=t(language, "screening_caption"), sub=True
-        )
-    )
-    show_figure(
-        plot_probability_chart(
-            {method: score for method, score, _ in combined}, highlight=combined[0][0]
-        ),
-        key="combined-confidence",
-    )
+    kpi_cols = st.columns(3)
+    kpi_cols[0].metric(":material/speed: Mobility Proxy", f"{mobility:.3f}")
+    kpi_cols[1].metric(":material/water_drop: RQI", f"{rqi:.3f}")
+    kpi_cols[2].metric(":material/grain: FZI", f"{fzi:.3f}")
 
 
 # ---------------------------------------------------------------------------
@@ -1079,744 +935,175 @@ def render_consensus(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    language = render_language_selector()
+    with st.sidebar:
+        language_name = st.selectbox("Language / Langue / اللغة", list(LANGUAGES), index=0)
+    language = LANGUAGES[language_name]
     apply_language_css(language)
-    input_data = render_input_panel(language)
 
-    classical_results = classical_screening(
-        input_data["Lithology"],
-        input_data["Permeability"],
-        normalize_percentage_to_fraction(input_data["Porosity"]),
-        input_data["Oil_Viscosity"],
-        input_data["Temperature"],
-        input_data["API_Gravity"],
-        input_data["Depth_ft"],
-        input_data["Pressure_psi"],
-        input_data["MMP_psi"] if input_data["MMP_psi"] > 0 else None,
+    flag_b64 = load_flag_image_base64("algeria-flag.png")
+    if flag_b64:
+        flag_html = f"<img class='dz-flag-img' src='data:image/png;base64,{flag_b64}' alt='Algeria flag' />"
+    else:
+        # Fallback if the PNG isn't found next to app.py, so the header
+        # still renders instead of breaking.
+        flag_html = "🇩🇿"
+    st.markdown(
+        f"""<div class='eor-header'>
+            <div class='eor-brand'>{flag_html}<h1>{t(language, 'title')}</h1></div>
+            <p class='eor-subtitle'>{t(language, 'subtitle')}</p>
+        </div>""",
+        unsafe_allow_html=True,
     )
-    model_result = predict_ml_system(input_data)
-    scores = consensus_scores(model_result)
-    ml_only_rank = sorted(scores.items(), key=lambda item: item[1], reverse=True)
-    combined = combined_ranking(scores, classical_results)
 
-    render_header(language)
-    render(section_header("trend", t(language, "proxies")))
+    with st.sidebar:
+        st.header(f":material/tune: {t(language, 'inputs')}")
+        with st.expander(t(language, "guide"), expanded=False, icon=":material/map:"):
+            st.write(t(language, "guide_text"))
+            st.dataframe(GEOLOGICAL_LITHOLOGY_GUIDE, hide_index=True, use_container_width=True)
+
+        st.markdown(
+            "<div class='eor-section-label'>:material/layers: Rock &amp; reservoir</div>",
+            unsafe_allow_html=True,
+        )
+        lithology_options = ["Carbonate", "Carbonate / Dolomite", "Carbonate / Limestone", "Sandstone", "Sandstone / Quartzite", "Mixed Clastic", "Unknown"]
+        lithology = st.selectbox(t(language, "lithology"), lithology_options, index=0)
+
+        permeability = st.number_input(f"{t(language, 'permeability')} (mD)", value=120.0, min_value=0.1, step=1.0)
+        porosity_pct = st.number_input(f"{t(language, 'porosity')} (%)", value=18.0, min_value=0.1, max_value=60.0, step=0.1)
+
+        st.markdown(
+            "<div class='eor-section-label'>:material/height: Depth &amp; pressure</div>",
+            unsafe_allow_html=True,
+        )
+        depth_unit = st.selectbox(f"{t(language, 'depth')} unit", ["m", "ft"])
+        depth = st.number_input(f"{t(language, 'depth')} ({depth_unit})", value=1828.8 if depth_unit == "m" else 6000.0, min_value=1.0, step=100.0)
+        pressure_unit = st.selectbox(f"{t(language, 'pressure')} unit", ["bar", "psi", "MPa"])
+        pressure = st.number_input(f"{t(language, 'pressure')} ({pressure_unit})", value=172.37 if pressure_unit == "bar" else (2500.0 if pressure_unit == "psi" else 17.24), min_value=0.1, step=10.0)
+        mmp = st.number_input(f"MMP ({pressure_unit}, optional)", value=0.0, min_value=0.0, step=5.0 if pressure_unit == "bar" else 50.0, help="Enter 0 when MMP is unavailable; depth will be used only as a proxy for miscible-gas screening.")
+        mmp_psi = mmp if pressure_unit == "psi" else mmp * {"bar": 14.5037738, "MPa": 145.037738}.get(pressure_unit, 1.0)
+
+        st.markdown(
+            "<div class='eor-section-label'>:material/water_drop: Fluid &amp; thermal</div>",
+            unsafe_allow_html=True,
+        )
+        temperature_unit = st.selectbox(f"{t(language, 'temperature')} unit", ["°C", "°F"])
+        temperature = st.number_input(f"{t(language, 'temperature')} ({temperature_unit})", value=82.22 if temperature_unit == "°C" else 180.0, min_value=-50.0, step=1.0)
+        viscosity_unit = st.selectbox(f"{t(language, 'viscosity')} unit", ["cP", "mPa·s"])
+        viscosity = st.number_input(f"{t(language, 'viscosity')} ({viscosity_unit})", value=8.0, min_value=0.001, step=0.1)
+        gravity_unit = st.selectbox(f"{t(language, 'gravity')} unit", ["°API", "Specific Gravity (SG)"])
+        gravity = st.number_input(f"{t(language, 'gravity')} ({gravity_unit})", value=32.0 if gravity_unit == "°API" else 0.865, min_value=0.01, step=0.1)
+
+    field_units = convert_to_field_units(depth, depth_unit, pressure, pressure_unit, temperature, temperature_unit, viscosity, viscosity_unit, gravity, gravity_unit)
+    input_data = {
+        "Lithology": lithology, "Permeability": permeability, "Porosity": porosity_pct,
+        "Oil_Viscosity": field_units["Oil_Viscosity"], "Temperature": field_units["Temperature"],
+        "API_Gravity": field_units["API_Gravity"], "Depth_ft": field_units["Depth_ft"], "Pressure_psi": field_units["Pressure_psi"],
+    }
+
+    st.subheader(f":material/analytics: {t(language, 'proxies')}")
     render_kpi_cards(input_data)
-    render(callout(t(language, "pressure_note"), "info", "shield"))
     st.caption(
-        f"{t(language, 'normalized')}: {input_data['Depth_ft']:.1f} ft | "
-        f"{input_data['Pressure_psi']:.1f} psi | {input_data['Temperature']:.1f} °F | "
-        f"{input_data['Oil_Viscosity']:.3f} cP | {input_data['API_Gravity']:.2f} °API"
+        f"{t(language, 'pressure_note')} "
+        f"<span class='eor-mono'>Normalized: {field_units['Depth_ft']:.1f} ft | "
+        f"{field_units['Pressure_psi']:.1f} psi | {field_units['Temperature']:.1f} °F | "
+        f"{field_units['Oil_Viscosity']:.3f} cP | {field_units['API_Gravity']:.2f} °API</span>",
+        unsafe_allow_html=True,
     )
 
-    top_method, top_score, top_status = combined[0]
-    render(
-        verdict_card(
-            top_method,
-            top_score,
-            top_status,
-            t(language, "recommendation"),
-            hint=t(language, "screening_caption"),
-            icon_name="target",
-        )
-    )
+    classical_results = classical_screening(lithology, permeability, normalize_percentage_to_fraction(porosity_pct), field_units["Oil_Viscosity"], field_units["Temperature"], field_units["API_Gravity"], field_units["Depth_ft"], field_units["Pressure_psi"], mmp_psi if mmp_psi > 0 else None)
+    model_result = predict_ml_system(input_data)
+    tab1, tab2, tab3 = st.tabs([
+        f":material/rule: {t(language, 'engine1_title')}",
+        f":material/science: {t(language, 'ml')}",
+        f":material/insights: {t(language, 'consensus')}",
+    ])
 
-    tab1, tab2, tab3 = st.tabs(
-        [t(language, "engine1_tab"), t(language, "ml"), t(language, "consensus")]
-    )
     with tab1:
-        render_engine_one(language, classical_results)
-    with tab2:
-        render_engine_two(language, model_result)
-    with tab3:
-        render_consensus(language, combined, ml_only_rank)
-
-
-# ---------------------------------------------------------------------------
-# 10. Design system
-# ---------------------------------------------------------------------------
-
-FONT_STACK = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-
-TOKENS: Dict[str, str] = {
-    "bg": "#F4F5F7",
-    "surface": "#FFFFFF",
-    "surface_2": "#FAFBFC",
-    "ink": "#0E1116",
-    "ink_2": "#39414D",
-    "muted": "#697180",
-    "faint": "#98A1AE",
-    "line": "#E6E8EC",
-    "line_strong": "#D4D9E0",
-    "accent": "#12527E",
-    "accent_soft": "#EAF1F7",
-    "accent_line": "#C4D8E8",
-    "track": "#EDEFF3",
-    "pass": "#1B7F5A",
-    "pass_soft": "#E7F4EF",
-    "pass_line": "#BFE0D2",
-    "marginal": "#A96B12",
-    "marginal_soft": "#FBF0DC",
-    "marginal_line": "#EBD5A9",
-    "fail": "#B4453C",
-    "fail_soft": "#FAEBE9",
-    "fail_line": "#EFC7C3",
-}
-
-STATUS_TONE = {"PASS": "pass", "MARGINAL": "marginal", "FAIL": "fail"}
-STATUS_ICON = {"PASS": "check", "MARGINAL": "alert", "FAIL": "close"}
-TAB_ICONS = ["scales", "cpu", "target"]
-
-ICONS: Dict[str, str] = {
-    "layers": '<path d="M12 2.7 2.5 7.4 12 12.1l9.5-4.7z"/><path d="m2.5 12.2 9.5 4.7 9.5-4.7"/><path d="m2.5 16.9 9.5 4.7 9.5-4.7"/>',
-    "droplet": '<path d="M12 3.2s6 6.1 6 10.1a6 6 0 0 1-12 0c0-4 6-10.1 6-10.1z"/>',
-    "waves": '<path d="M2.5 6.5c.7.6 1.3 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.2 0 1.8.4 2.5 1"/><path d="M2.5 12c.7.6 1.3 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.2 0 1.8.4 2.5 1"/><path d="M2.5 17.5c.7.6 1.3 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.2 0 1.8.4 2.5 1"/>',
-    "grid": '<rect x="3" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"/>',
-    "thermometer": '<path d="M14 14.8V4.5a2.5 2.5 0 1 0-5 0v10.3a4.5 4.5 0 1 0 5 0Z"/><path d="M11.5 8v6.6"/>',
-    "flask": '<path d="M10 2.5v7.2L4.6 19.1A2 2 0 0 0 6.4 22h11.2a2 2 0 0 0 1.8-2.9L14 9.7V2.5"/><path d="M8.5 2.5h7"/><path d="M7.2 16.5h9.6"/>',
-    "depth": '<path d="M12 3.2v13.6"/><path d="m6.5 11.5 5.5 5.5 5.5-5.5"/><path d="M4.5 21.2h15"/>',
-    "gauge": '<path d="M3.4 19a10 10 0 1 1 17.2 0"/><path d="m12 14 4.2-4.2"/><circle cx="12" cy="14" r="1.1"/><circle cx="16.2" cy="9.8" r="1.1"/>',
-    "scales": '<path d="m16 16 3-8 3 8a4.2 4.2 0 0 1-6 0Z"/><path d="m2 16 3-8 3 8a4.2 4.2 0 0 1-6 0Z"/><path d="M7 21.3h10"/><path d="M12 3.2v18.1"/><path d="M3 7.2h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/>',
-    "cpu": '<rect x="4" y="4" width="16" height="16" rx="2.4"/><rect x="9" y="9" width="6" height="6" rx="1.2"/><path d="M9.5 2v2M14.5 2v2M9.5 20v2M14.5 20v2M2 9.5h2M2 14.5h2M20 9.5h2M20 14.5h2"/>',
-    "target": '<circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="1"/>',
-    "merge": '<circle cx="18" cy="18" r="2.6"/><circle cx="6" cy="6" r="2.6"/><path d="M6 21.2V9a9 9 0 0 0 9 9"/>',
-    "check": '<circle cx="12" cy="12" r="8.6"/><path d="m8.4 12.2 2.4 2.4 4.8-5"/>',
-    "alert": '<path d="M10.3 4 2.4 17.8A2 2 0 0 0 4.1 20.8h15.8a2 2 0 0 0 1.7-3L13.7 4a2 2 0 0 0-3.4 0Z"/><path d="M12 9.4v4.2"/><path d="M12 16.9h.01"/>',
-    "close": '<circle cx="12" cy="12" r="8.6"/><path d="m15 9-6 6M9 9l6 6"/>',
-    "info": '<circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v5.2"/><path d="M12 7.9h.01"/>',
-    "book": '<path d="M12 7.2v13.4"/><path d="M3.4 17.8a1 1 0 0 1-1-1V4.2a1 1 0 0 1 1-1h4.9a4 4 0 0 1 3.7 2.1 4 4 0 0 1 3.7-2.1h4.9a1 1 0 0 1 1 1v12.6a1 1 0 0 1-1 1h-5.4a3 3 0 0 0-2.6 1.2 3 3 0 0 0-2.6-1.2Z"/>',
-    "globe": '<circle cx="12" cy="12" r="8.6"/><path d="M3.4 12h17.2"/><path d="M12 3.4a15 15 0 0 1 0 17.2 15 15 0 0 1 0-17.2Z"/>',
-    "sliders": '<path d="M4 21v-6.5M4 10.5V3M12 21v-8.5M12 8.5V3M20 21v-4.5M20 12.5V3"/><path d="M1.5 14.5h5M9.5 8.5h5M17.5 16.5h5"/>',
-    "percent": '<path d="M19 5 5 19"/><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/>',
-    "chart": '<path d="M18 20.5V11M12 20.5V3.5M6 20.5v-6"/>',
-    "trend": '<path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/>',
-    "list": '<path d="M9 6.5h12M9 12h12M9 17.5h12"/><path d="M4.2 6.5h.01M4.2 12h.01M4.2 17.5h.01"/>',
-    "file": '<path d="M14 3.2H7.4a2 2 0 0 0-2 2v13.6a2 2 0 0 0 2 2h9.2a2 2 0 0 0 2-2V8.2Z"/><path d="M14 3.2v5h4.6"/><path d="M8.8 13.4h6.4M8.8 16.6h4.4"/>',
-    "table": '<rect x="3" y="4" width="18" height="16" rx="2.4"/><path d="M3 9.6h18M3 15h18M9.2 9.6V20"/>',
-    "filter": '<path d="M3.5 5.2h17l-6.6 7.8v5.6l-3.8 2v-7.6Z"/>',
-    "checkCircle": '<circle cx="12" cy="12" r="8.6"/><path d="m8.4 12.2 2.4 2.4 4.8-5"/>',
-    "refresh": '<path d="M20.5 11.5a8.5 8.5 0 1 0-1.6 5.6"/><path d="M20.5 5.5v6h-6"/>',
-    "sparkle": '<path d="M12 3.2 13.6 9 19.4 10.6 13.6 12.2 12 18 10.4 12.2 4.6 10.6 10.4 9Z"/><path d="M18.5 3.5v3M20 5h-3"/>',
-    "shield": '<path d="M12 21.2s7-3 7-8.6V6.1L12 3.2 5 6.1v6.5c0 5.6 7 8.6 7 8.6Z"/><path d="M12 9.2v4"/><path d="M12 15.6h.01"/>',
-    "chartArea": '<path d="M3.5 3.5v17h17"/><path d="m7 15.5 3.5-4 3 2.5 4.5-6.5"/>',
-    "drop": '<path d="M12 3.4s5.6 5.8 5.6 9.5a5.6 5.6 0 0 1-11.2 0c0-3.7 5.6-9.5 5.6-9.5Z"/>',
-}
-
-PLOT_COLORS = {
-    "accent": TOKENS["accent"],
-    "neutral": "#C7CDD6",
-    "track": TOKENS["line"],
-    "muted": TOKENS["muted"],
-    "ink": TOKENS["ink_2"],
-    "font": FONT_STACK,
-}
-
-
-def icon(name: str, size: int = 18, stroke: float = 1.7, cls: str = "") -> str:
-    """Return an outlined 24x24 SVG glyph string for the given icon name."""
-    body = ICONS.get(name, ICONS["info"])
-    class_attr = f' class="{cls}"' if cls else ""
-    return (
-        f'<svg{class_attr} viewBox="0 0 24 24" width="{size}" height="{size}" fill="none" '
-        f'stroke="currentColor" stroke-width="{stroke}" stroke-linecap="round" '
-        f'stroke-linejoin="round" aria-hidden="true">{body}</svg>'
-    )
-
-
-def icon_data_uri(name: str, stroke: float = 1.8) -> str:
-    """Encode an icon as a data URI so it can be used as a CSS mask."""
-    raw = icon(name, size=24, stroke=stroke).replace('"', "'")
-    return "data:image/svg+xml," + quote(raw, safe="/:=!'()*-._ ~")
-
-
-def _vars() -> str:
-    return "".join(f"--eor-{key.replace('_', '-')}:{value};" for key, value in TOKENS.items())
-
-
-BASE_CSS = """
-*,*::before,*::after{box-sizing:border-box}
-:root{__VARS__--eor-font:__FONT__;--eor-radius:12px;--eor-radius-lg:16px;
---eor-shadow-1:0 1px 2px rgba(14,17,22,.04),0 10px 26px -18px rgba(14,17,22,.28);
---eor-accent-ring:rgba(18,82,126,.13)}
-html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
-body,.stApp,[data-testid="stAppViewContainer"]{background:var(--eor-bg);color:var(--eor-ink);
-font-family:var(--eor-font);font-size:15px;line-height:1.55;letter-spacing:-.005em;
--webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
-::selection{background:var(--eor-accent-soft);color:var(--eor-ink)}
-::-webkit-scrollbar{width:9px;height:9px}
-::-webkit-scrollbar-thumb{background:#D6DAE1;border-radius:9px}
-::-webkit-scrollbar-track{background:transparent}
-
-#MainMenu,footer,[data-testid="stStatusWidget"],[data-testid="stDecoration"],
-[data-testid="stToolbar"]{visibility:hidden}
-button[data-testid="stBaseButton-header"]:has(div[data-testid="stToolbarActionButtonIcon"]){display:none!important}
-
-/* ---------- layout rhythm ---------- */
-[data-testid="stMain"] .block-container,.block-container{padding:1rem 1rem 5.5rem;max-width:1140px}
-[data-testid="stVerticalBlock"],[data-testid="stVerticalBlockBorderWrapper"]>div{gap:.7rem}
-[data-testid="stHorizontalBlock"]{gap:.7rem}
-h1,h2,h3,h4{margin:0;letter-spacing:-.02em}
-.stMarkdown p{margin-block:0 .35rem}
-.stCaption,.stMarkdown p[data-testid="stCaptionContainer"] p{color:var(--eor-muted);font-size:.8rem;line-height:1.5}
-.stMarkdown p[data-testid="stCaptionContainer"]{margin-block:0}
-
-/* ---------- sidebar ---------- */
-section[data-testid="stSidebar"]{background:var(--eor-surface);border-inline-end:1px solid var(--eor-line)}
-section[data-testid="stSidebar"] .block-container{padding-block:1.1rem 3rem}
-section[data-testid="stSidebarCollapseButton"] button,
-section[data-testid="stSidebarCollapsedControl"] button{border-radius:8px}
-
-/* ---------- native widgets ---------- */
-.stApp label,.stApp summary{color:var(--eor-ink-2);font-size:12.5px;font-weight:550;letter-spacing:.005em}
-div[data-baseweb="input"],div[data-baseweb="select"]>div:first-child{
-background:var(--eor-surface-2)!important;border:1px solid var(--eor-line)!important;
-border-radius:10px!important;box-shadow:none!important;transition:border-color .15s,box-shadow .15s}
-div[data-baseweb="input"]:focus-within,div[data-baseweb="select"]>div:focus-within{
-border-color:var(--eor-accent)!important;box-shadow:0 0 0 3px var(--eor-accent-ring)!important}
-div[data-baseweb="input"] input,div[data-baseweb="select"]>div:first-child{
-background:transparent!important;border:0!important;box-shadow:none!important;color:var(--eor-ink);
-font-family:var(--eor-font);font-size:15px;font-weight:550;padding-block:.5rem}
-div[data-baseweb="input"] input:focus,div[data-baseweb="select"]>div:first-child:focus{outline:none}
-div[data-baseweb="input"] input::placeholder{color:var(--eor-faint);font-weight:450}
-div[data-testid="stSelectbox"] svg{color:var(--eor-faint)}
-div[data-baseweb="popover"] li{font-size:14px;border-radius:8px;padding:.45rem .6rem}
-div[data-baseweb="popover"] li:hover{background:var(--eor-accent-soft)}
-div[data-testid^="stNumberInputStep"]{border:0!important;background:transparent!important;
-color:var(--eor-faint)!important;border-radius:7px;width:26px;height:26px;margin-inline:2px}
-div[data-testid^="stNumberInputStep"]:hover{color:var(--eor-accent)!important;background:var(--eor-accent-soft)}
-div[data-testid="stWidgetLabel"] label{padding-block-end:.25rem}
-
-div[data-testid="stExpander"]{border:1px solid var(--eor-line);border-radius:var(--eor-radius);
-background:var(--eor-surface);box-shadow:none;overflow:hidden}
-div[data-testid="stExpander"] summary{list-style:none;padding:.6rem .85rem}
-div[data-testid="stExpander"] summary::-webkit-details-marker{display:none}
-div[data-testid="stExpander"] summary:hover{background:var(--eor-surface-2)}
-div[data-testid="stExpander"] summary svg{color:var(--eor-faint);transition:transform .2s ease}
-div[data-testid="stExpander"][open] summary svg{transform:rotate(90deg)}
-div[data-testid="stExpander"] [data-testid="stExpanderDetails"]>div{padding-block:.2rem .4rem}
-.stElementContainer:has(.eor-card)+.stElementContainer div[data-testid="stExpander"]{
-margin-block-start:-7px;border-start-start-radius:0;border-start-end-radius:0;border-block-start-color:transparent}
-
-div[data-testid="stTabs"]{gap:.9rem}
-div[data-testid="stTabs"] [role="tablist"]{gap:3px;background:var(--eor-surface-2);
-border:1px solid var(--eor-line);border-radius:13px;padding:4px;overflow-x:auto;scrollbar-width:none}
-div[data-testid="stTabs"] [role="tablist"]::-webkit-scrollbar{display:none}
-button[data-baseweb="tab"]{display:inline-flex;align-items:center;gap:.45rem;height:auto;
-padding:.5rem .8rem;border-radius:9px;background:transparent;color:var(--eor-muted);
-font-family:var(--eor-font);font-size:13.5px;font-weight:550;white-space:nowrap;transition:.15s}
-button[data-baseweb="tab"] p{font-size:13.5px!important;line-height:1.35!important;margin:0!important}
-button[data-baseweb="tab"]:hover{color:var(--eor-ink-2);background:#F0F2F5}
-button[data-baseweb="tab"][aria-selected="true"]{background:var(--eor-surface);color:var(--eor-ink);
-box-shadow:var(--eor-shadow-1)}
-button[data-baseweb="tab"]::before{content:"";display:none;width:15px;height:15px;flex:none;
-background:currentColor;-webkit-mask-size:contain;mask-size:contain;
--webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center}
-
-.stButton>button,.stDownloadButton>button,.stLinkButton>button{
-border-radius:10px;border:1px solid var(--eor-line);background:var(--eor-surface);
-color:var(--eor-ink);font-family:var(--eor-font);font-size:13.5px;font-weight:600;box-shadow:none}
-.stButton>button:hover{border-color:var(--eor-accent-line);color:var(--eor-accent);background:var(--eor-accent-soft)}
-.stButton>button[kind="primary"]{background:var(--eor-accent);border-color:var(--eor-accent);color:#fff}
-.stButton>button[kind="primary"]:hover{background:#0E4468;color:#fff}
-.stButton>button:focus-visible,.stApp a:focus-visible,button:focus-visible,summary:focus-visible,
-div[data-baseweb="input"] input:focus-visible{outline:2px solid var(--eor-accent);outline-offset:2px}
-
-div[data-testid="stDataFrame"]{border:1px solid var(--eor-line);border-radius:var(--eor-radius);overflow:hidden}
-div[data-testid="stDataFrame"] *{font-family:var(--eor-font)!important;font-size:13px!important}
-div[data-testid="stDataFrameResizeHandle"]{display:none}
-div[data-testid="stAlert"]{border-radius:var(--eor-radius);border:1px solid var(--eor-line)}
-
-.js-plotly-plot .plotly .modebar,.plotly .modebar{display:none!important}
-[data-testid="stPlotlyChart"]{border-radius:var(--eor-radius)}
-
-/* ---------- composed components ---------- */
-.eor-hero{position:relative;overflow:hidden;border:1px solid var(--eor-line);border-radius:var(--eor-radius-lg);
-background:linear-gradient(180deg,var(--eor-surface) 0%,var(--eor-surface-2) 100%);
-padding:1.1rem;box-shadow:var(--eor-shadow-1)}
-.eor-hero-art{position:absolute;inset-block:0;inset-inline-end:0;width:min(56%,440px);height:100%;
-color:var(--eor-accent);opacity:.11;pointer-events:none}
-.eor-hero-inner{position:relative}
-.eor-hero-top{display:flex;align-items:flex-start;gap:.8rem}
-.eor-flag{width:36px;height:25px;flex:none;border-radius:4px;border:1px solid var(--eor-line-strong);
-box-shadow:0 1px 2px rgba(14,17,22,.08);display:block;margin-block-start:.15rem}
-.eor-hero h1{font-size:1.22rem;line-height:1.25;font-weight:650;letter-spacing:-.025em}
-.eor-hero-sub{margin:.25rem 0 0;color:var(--eor-muted);font-size:.85rem;line-height:1.5;max-width:58ch}
-.eor-chips{display:flex;flex-wrap:wrap;gap:.35rem;margin-block-start:.85rem}
-.eor-chip{display:inline-flex;align-items:center;gap:.35rem;border:1px solid var(--eor-line);
-background:var(--eor-surface);color:var(--eor-ink-2);border-radius:999px;padding:.22rem .55rem;
-font-size:.715rem;font-weight:550;letter-spacing:.01em;white-space:nowrap}
-.eor-chip svg{color:var(--eor-accent);flex:none}
-
-.eor-section{display:flex;align-items:center;gap:.65rem;margin:1.35rem 0 .6rem}
-.eor-section-icon{width:32px;height:32px;flex:none;border-radius:9px;display:grid;place-items:center;
-background:var(--eor-accent-soft);color:var(--eor-accent);border:1px solid var(--eor-accent-line)}
-.eor-section-title{font-size:1rem;font-weight:650;letter-spacing:-.015em;line-height:1.3}
-.eor-section-sub{margin:.05rem 0 0;font-size:.78rem;color:var(--eor-muted);line-height:1.45}
-.eor-rule{flex:1;height:1px;background:var(--eor-line);min-width:12px}
-.eor-section--sub{margin:1.15rem 0 .5rem}
-.eor-section--sub .eor-section-icon{width:28px;height:28px;border-radius:8px}
-.eor-section--sub .eor-section-icon svg{width:15px;height:15px}
-.eor-section--sub .eor-section-title{font-size:.92rem}
-.eor-section--sub .eor-rule{display:none}
-.eor-group{display:flex;align-items:center;gap:.4rem;margin:.55rem 0 .1rem;color:var(--eor-muted);
-font-size:.675rem;font-weight:650;text-transform:uppercase;letter-spacing:.09em}
-.eor-group svg{color:var(--eor-faint);flex:none}
-
-.eor-kpis{display:grid;gap:.55rem;grid-template-columns:1fr}
-.eor-kpi{display:flex;align-items:center;gap:.75rem;border:1px solid var(--eor-line);border-radius:var(--eor-radius);
-background:var(--eor-surface);padding:.7rem .85rem;box-shadow:var(--eor-shadow-1)}
-.eor-kpi-icon{width:34px;height:34px;flex:none;border-radius:10px;display:grid;place-items:center;
-background:var(--eor-accent-soft);color:var(--eor-accent)}
-.eor-kpi-body{min-width:0;flex:1}
-.eor-kpi-label{font-size:.665rem;text-transform:uppercase;letter-spacing:.09em;color:var(--eor-muted);font-weight:650}
-.eor-kpi-value{font-size:1.12rem;font-weight:650;letter-spacing:-.02em;line-height:1.3;
-font-variant-numeric:tabular-nums}
-.eor-kpi-hint{font-size:.7rem;color:var(--eor-faint);line-height:1.4}
-
-.eor-card{border:1px solid var(--eor-line);border-inline-start:3px solid var(--eor-line-strong);
-border-radius:var(--eor-radius);background:var(--eor-surface);padding:.8rem .9rem;box-shadow:var(--eor-shadow-1)}
-.eor-card--pass{border-inline-start-color:var(--eor-pass)}
-.eor-card--marginal{border-inline-start-color:var(--eor-marginal)}
-.eor-card--fail{border-inline-start-color:var(--eor-fail)}
-.eor-card--neutral{border-inline-start-color:var(--eor-accent)}
-.eor-card-head{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap}
-.eor-card-icon{color:var(--eor-faint);flex:none;display:grid;place-items:center}
-.eor-card-head h3{font-size:.93rem;font-weight:600;line-height:1.35;flex:1 1 auto;min-width:0}
-.eor-badge{display:inline-flex;align-items:center;gap:.28rem;border-radius:999px;padding:.16rem .5rem;
-font-size:.655rem;font-weight:700;letter-spacing:.055em;text-transform:uppercase;border:1px solid;white-space:nowrap}
-.eor-badge--pass{color:var(--eor-pass);background:var(--eor-pass-soft);border-color:var(--eor-pass-line)}
-.eor-badge--marginal{color:var(--eor-marginal);background:var(--eor-marginal-soft);border-color:var(--eor-marginal-line)}
-.eor-badge--fail{color:var(--eor-fail);background:var(--eor-fail-soft);border-color:var(--eor-fail-line)}
-.eor-badge--neutral{color:var(--eor-ink-2);background:var(--eor-surface-2);border-color:var(--eor-line-strong)}
-.eor-notes{margin:.55rem 0 0;padding:0;list-style:none;display:grid;gap:.3rem}
-.eor-notes li{display:flex;align-items:flex-start;gap:.4rem;font-size:.795rem;color:var(--eor-ink-2);line-height:1.45}
-.eor-notes li svg{flex:none;margin-block-start:.15rem}
-.eor-note--warn{color:var(--eor-marginal)}
-.eor-note--warn svg{color:var(--eor-marginal)}
-.eor-note--muted{color:var(--eor-muted)}
-.eor-note--muted svg{color:var(--eor-faint)}
-
-.eor-verdict{display:flex;align-items:center;gap:.85rem;border:1px solid var(--eor-line);
-border-radius:var(--eor-radius);background:linear-gradient(180deg,var(--eor-surface) 0%,var(--eor-surface-2) 100%);
-padding:.9rem 1rem;box-shadow:var(--eor-shadow-1)}
-.eor-ring{width:54px;height:54px;flex:none}
-.eor-ring circle{fill:none;stroke-width:3.4;stroke-linecap:round}
-.eor-ring .ring-track{stroke:var(--eor-track)}
-.eor-ring .ring-val{stroke:var(--eor-accent);transition:stroke-dashoffset .5s ease}
-.eor-ring .ring-text{fill:var(--eor-ink);font-size:13px;font-weight:700;text-anchor:middle;
-font-family:var(--eor-font)}
-.eor-verdict-body{min-width:0;flex:1}
-.eor-verdict-label{font-size:.665rem;text-transform:uppercase;letter-spacing:.09em;color:var(--eor-muted);font-weight:650}
-.eor-verdict-value{font-size:1.12rem;font-weight:650;letter-spacing:-.02em;line-height:1.3}
-.eor-verdict-meta{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;margin-block-start:.3rem}
-.eor-verdict-hint{margin:.3rem 0 0;font-size:.775rem;color:var(--eor-muted);line-height:1.5}
-
-.eor-list{list-style:none;margin:.1rem 0 0;padding:0;border:1px solid var(--eor-line);
-border-radius:var(--eor-radius);background:var(--eor-surface);overflow:hidden;box-shadow:var(--eor-shadow-1)}
-.eor-list-head{display:flex;justify-content:space-between;align-items:center;gap:.5rem;
-padding:0 .15rem .4rem;margin-block-end:.4rem;border-block-end:1px solid var(--eor-line);
-font-size:.665rem;text-transform:uppercase;letter-spacing:.085em;font-weight:650;color:var(--eor-muted)}
-.eor-list>li+li{border-block-start:1px solid var(--eor-line)}
-.eor-list>li{padding:.7rem .85rem}
-.eor-list>li.eor-lead{background:var(--eor-surface-2)}
-.eor-row-head{display:flex;align-items:center;gap:.55rem}
-.eor-rank{display:inline-grid;place-items:center;min-width:20px;height:20px;padding-inline:.3rem;border-radius:6px;
-background:var(--eor-track);color:var(--eor-muted);font-size:.68rem;font-weight:700;flex:none;
-font-variant-numeric:tabular-nums}
-.eor-lead .eor-rank{background:var(--eor-accent);color:#fff}
-.eor-name{flex:1 1 auto;min-width:0;font-size:.875rem;font-weight:600;line-height:1.4;letter-spacing:-.01em}
-.eor-score{font-size:.875rem;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em;flex:none}
-.eor-track{height:6px;border-radius:999px;background:var(--eor-track);overflow:hidden;margin-block-start:.5rem}
-.eor-fill{height:100%;border-radius:999px;background:var(--eor-accent)}
-.eor-fill--pass{background:var(--eor-pass)}
-.eor-fill--marginal{background:var(--eor-marginal)}
-.eor-fill--fail{background:var(--eor-fail)}
-.eor-fill--neutral{background:var(--eor-neutral,#C7CDD6)}
-.eor-row-meta{display:flex;align-items:center;gap:.4rem;margin-block-start:.45rem}
-
-.eor-params{list-style:none;margin:0;padding:0;border:1px solid var(--eor-line);
-border-radius:var(--eor-radius);overflow:hidden;background:var(--eor-surface)}
-.eor-params>li{display:flex;align-items:center;justify-content:space-between;gap:.75rem;
-padding:.55rem .8rem;font-size:.83rem}
-.eor-params>li+li{border-block-start:1px solid var(--eor-line)}
-.eor-params>li:nth-child(odd){background:var(--eor-surface-2)}
-.eor-param-name{color:var(--eor-ink-2);min-width:0}
-.eor-param-note{color:var(--eor-muted);font-size:.76rem;text-align:end;font-variant-numeric:tabular-nums}
-.eor-dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
-.eor-dot--pass{background:var(--eor-pass)}
-.eor-dot--marginal{background:var(--eor-marginal)}
-.eor-dot--fail{background:var(--eor-fail)}
-
-.eor-callout{display:flex;gap:.6rem;border:1px solid var(--eor-line);border-radius:var(--eor-radius);
-background:var(--eor-surface-2);padding:.75rem .85rem;font-size:.83rem;line-height:1.55;color:var(--eor-ink-2)}
-.eor-callout svg{flex:none;margin-block-start:.1rem}
-.eor-callout--info{background:var(--eor-accent-soft);border-color:var(--eor-accent-line);color:#12384F}
-.eor-callout--info svg{color:var(--eor-accent)}
-.eor-callout--warn{background:var(--eor-marginal-soft);border-color:var(--eor-marginal-line);color:#6E4708}
-.eor-callout--warn svg{color:var(--eor-marginal)}
-.eor-callout--ok{background:var(--eor-pass-soft);border-color:var(--eor-pass-line);color:#125741}
-.eor-callout--ok svg{color:var(--eor-pass)}
-
-@media (min-width:560px){
-[data-testid="stMain"] .block-container,.block-container{padding:1.35rem 1.5rem 6rem}
-.eor-hero{padding:1.4rem 1.5rem}
-.eor-flag{width:44px;height:30px}
-.eor-hero h1{font-size:1.5rem}
-.eor-hero-sub{font-size:.9rem}
-.eor-ring{width:60px;height:60px}
-.eor-ring .ring-text{font-size:14px}
-}
-@media (min-width:720px){
-.eor-kpis{grid-template-columns:repeat(3,1fr)}
-.eor-kpi{padding:.8rem 1rem}
-}
-@media (min-width:1200px){
-[data-testid="stMain"] .block-container,.block-container{padding-block:1.6rem}
-}
-@media (prefers-reduced-motion:reduce){
-*{animation-duration:.001ms!important;transition-duration:.001ms!important}
-}
-"""
-
-COMPONENT_CSS = """
-@media (max-width:639px){
-button[data-baseweb="tab"]{padding:.5rem .65rem;font-size:13px}
-.eor-verdict{align-items:flex-start}
-}
-"""
-
-
-def _build_css() -> str:
-    css = BASE_CSS.replace("__VARS__", _vars()).replace("__FONT__", FONT_STACK)
-    for index, name in enumerate(TAB_ICONS, start=1):
-        uri = icon_data_uri(name)
-        css += (
-            f'\ndiv[data-testid="stTabs"] [role="tablist"] > button:nth-of-type({index})::before'
-            f"{{display:block;-webkit-mask-image:url('{uri}');mask-image:url('{uri}')}}"
-        )
-    return css + COMPONENT_CSS
-
-
-def mount(language: str) -> None:
-    """Install the design system stylesheet and the writing direction."""
-    direction = "rtl" if language == "ar" else "ltr"
-    st.html(
-        f'<style>html,body,[data-testid="stAppViewContainer"]{{direction:{direction};}}'
-        f"{_build_css()}</style>"
-    )
-
-
-# ---------------------------------------------------------------------------
-# HTML components
-# ---------------------------------------------------------------------------
-
-def hero_header(
-    title: str,
-    subtitle: str,
-    flag_base64: Optional[str],
-    chips: Sequence[Dict[str, str]],
-) -> str:
-    flag = (
-        f'<img class="eor-flag" src="data:image/png;base64,{flag_base64}" alt="Algeria flag" />'
-        if flag_base64
-        else f'<span class="eor-chip">{icon("globe", 15)} 🇩🇿</span>'
-    )
-    chip_html = "".join(
-        f'<span class="eor-chip">{icon(chip.get("icon", "sparkle"), 14)}'
-        f'{escape(chip.get("text", ""))}</span>'
-        for chip in chips
-    )
-    return f"""<header class="eor-hero">
-  <svg class="eor-hero-art" viewBox="0 0 440 190" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-    <g fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round">
-      <path d="M-30 128C40 92 96 168 168 132s128-64 200-26 96 46 120 24"/>
-      <path d="M-30 150C40 114 96 190 168 154s128-64 200-26 96 46 120 24"/>
-      <path d="M-30 106C40 70 96 146 168 110s128-64 200-26 96 46 120 24"/>
-      <path d="M-30 84C40 48 96 124 168 88s128-64 200-26 96 46 120 24" stroke-dasharray="3 6"/>
-      <path d="M-30 62C40 26 96 102 168 66s128-64 200-26 96 46 120 24" stroke-dasharray="3 6"/>
-      <path d="M96 -10v210M232 -10v210M344 -10v210" stroke-dasharray="2 7" opacity=".7"/>
-    </g>
-    <g fill="none" stroke="currentColor" stroke-width="1.1">
-      <circle cx="96" cy="132" r="4"/><circle cx="232" cy="110" r="4"/><circle cx="344" cy="152" r="4"/>
-    </g>
-  </svg>
-  <div class="eor-hero-inner">
-    <div class="eor-hero-top">{flag}
-      <div><h1>{escape(title)}</h1><p class="eor-hero-sub">{escape(subtitle)}</p></div>
-    </div>
-    <div class="eor-chips">{chip_html}</div>
-  </div>
-</header>"""
-
-
-def section_header(icon_name: str, title: str, subtitle: str = "", sub: bool = False) -> str:
-    sub = f'<p class="eor-section-sub">{escape(subtitle)}</p>' if subtitle else ""
-    modifier = " eor-section--sub" if sub else ""
-    return f"""<div class="eor-section{modifier}">
-  <span class="eor-section-icon">{icon(icon_name, 17)}</span>
-  <div><div class="eor-section-title">{escape(title)}</div>{sub}</div>
-  <span class="eor-rule"></span>
-</div>"""
-
-
-def group_label(icon_name: str, text: str) -> str:
-    """A compact uppercase label used to group form fields."""
-    return f'<div class="eor-group">{icon(icon_name, 14)}<span>{escape(text)}</span></div>'
-
-
-def kpi_grid(items: Sequence[Dict[str, str]]) -> str:
-    cards = []
-    for item in items:
-        hint = f'<div class="eor-kpi-hint">{escape(item["hint"])}</div>' if item.get("hint") else ""
-        cards.append(
-            f"""<div class="eor-kpi">
-  <span class="eor-kpi-icon">{icon(item.get("icon", "chart"), 18)}</span>
-  <div class="eor-kpi-body">
-    <div class="eor-kpi-label">{escape(item["label"])}</div>
-    <div class="eor-kpi-value">{escape(item["value"])}</div>
-    {hint}
-  </div>
-</div>"""
-        )
-    return f'<div class="eor-kpis">{"".join(cards)}</div>'
-
-
-def _ring(pct: float, tone: str = "accent") -> str:
-    radius = 19.0
-    circumference = 2 * 3.14159265 * radius
-    offset = circumference * (1.0 - max(0.0, min(1.0, pct)))
-    stroke = f"var(--eor-{tone})" if tone != "accent" else "var(--eor-accent)"
-    return f"""<svg class="eor-ring" viewBox="0 0 44 44" aria-hidden="true">
-  <circle class="ring-track" cx="22" cy="22" r="{radius}"/>
-  <circle class="ring-val" cx="22" cy="22" r="{radius}" stroke="{stroke}"
-    stroke-dasharray="{circumference:.1f}" stroke-dashoffset="{offset:.1f}"
-    transform="rotate(-90 22 22)"/>
-  <text class="ring-text" x="22" y="26">{int(round(pct * 100))}</text>
-</svg>"""
-
-
-def verdict_card(
-    method: str,
-    confidence: float,
-    status: str,
-    label: str,
-    hint: str = "",
-    icon_name: str = "target",
-) -> str:
-    tone = STATUS_TONE.get(status, "neutral")
-    meta = f'<span class="eor-badge eor-badge--{tone}">{icon(STATUS_ICON.get(status, "info"), 12)}{escape(status)}</span>'
-    hint_html = f'<p class="eor-verdict-hint">{escape(hint)}</p>' if hint else ""
-    return f"""<div class="eor-verdict">
-  {_ring(confidence, tone)}
-  <div class="eor-verdict-body">
-    <div class="eor-verdict-label">{escape(label)}</div>
-    <div class="eor-verdict-value">{escape(method)}</div>
-    <div class="eor-verdict-meta">{icon(icon_name, 14, cls="eor-card-icon")}{meta}</div>
-    {hint_html}
-  </div>
-</div>"""
-
-
-def status_card(
-    method: str,
-    status: str,
-    violations: Sequence[str] = (),
-    icon_name: str = "flask",
-    violations_label: str = "",
-) -> str:
-    """A method card carrying its screening status badge and any violations."""
-    tone = STATUS_TONE.get(status, "neutral")
-    notes = ""
-    if violations:
-        label = f"{violations_label}: " if violations_label else ""
-        notes = (
-            '<ul class="eor-notes">'
-            f'<li class="eor-note--warn">{icon("alert", 14)}'
-            f"<span>{escape(label + ', '.join(violations))}</span></li></ul>"
-        )
-    return f"""<div class="eor-card eor-card--{tone}">
-  <div class="eor-card-head">
-    <span class="eor-card-icon">{icon(icon_name, 17)}</span>
-    <h3>{escape(method)}</h3>
-    <span class="eor-badge eor-badge--{tone}">{icon(STATUS_ICON.get(status, "info"), 12)}{escape(status)}</span>
-  </div>
-  {notes}
-</div>"""
-
-
-def model_card(model_name: str, prediction: str, predicted_label: str, icon_name: str = "cpu") -> str:
-    return f"""<div class="eor-card eor-card--neutral">
-  <div class="eor-card-head">
-    <span class="eor-card-icon">{icon(icon_name, 17)}</span>
-    <h3>{escape(model_name)}</h3>
-  </div>
-  <div class="eor-verdict-meta" style="margin-block:.55rem 0">
-    <span class="eor-badge eor-badge--neutral">{escape(predicted_label)}</span>
-    <span style="font-size:.93rem;font-weight:600;letter-spacing:-.01em">{escape(prediction)}</span>
-  </div>
-</div>"""
-
-
-def column_header(left: str, right: str) -> str:
-    """A hairline micro-header that labels the two columns of a ranking list."""
-    return (
-        f'<div class="eor-list-head"><span>{escape(left)}</span>'
-        f"<span>{escape(right)}</span></div>"
-    )
-
-
-def ranking_list(
-    rows: Sequence[Dict[str, Any]],
-    show_status: bool = False,
-    statuses: Optional[Dict[str, str]] = None,
-) -> str:
-    statuses = statuses or {}
-    top = max((row["value"] for row in rows), default=0.0) or 1.0
-    items = []
-    for index, row in enumerate(rows, start=1):
-        method = row["method"]
-        value = float(row["value"])
-        ratio = max(2.0, value / top * 100.0)
-        status = statuses.get(method)
-        tone = STATUS_TONE.get(status or "", "neutral")
-        fill = f"eor-fill--{tone}" if show_status else "eor-fill"
-        badge = (
-            f'<span class="eor-badge eor-badge--{tone}">'
-            f"{icon(STATUS_ICON.get(status or '', 'info'), 12)}{escape(status or '')}</span>"
-            if show_status
-            else ""
-        )
-        lead = " eor-lead" if index == 1 else ""
-        items.append(
-            f"""<li class="{lead.strip()}">
-  <div class="eor-row-head">
-    <span class="eor-rank">{index}</span>
-    <span class="eor-name">{escape(method)}</span>
-    {badge}
-    <span class="eor-score">{value * 100:.1f}%</span>
-  </div>
-  <div class="eor-track"><span class="eor-fill {fill}" style="width:{ratio:.1f}%"></span></div>
-</li>"""
-        )
-    return f'<ul class="eor-list">{"".join(items)}</ul>'
-
-
-def parameter_table(parameters: Dict[str, str]) -> str:
-    rows = []
-    for name, value in parameters.items():
-        tone = STATUS_TONE.get(value)
-        if tone:
-            cell = (
-                f'<span class="eor-badge eor-badge--{tone}">'
-                f"{icon(STATUS_ICON.get(value, 'info'), 11)}{escape(value)}</span>"
+        st.subheader(t(language, "engine1_title"))
+        st.caption(t(language, "screening_caption"))
+        st.info(t(language, "engine1_disclaimer"), icon=":material/info:")
+        for method_name, result in classical_results.items():
+            status = result["status"]
+            st.markdown(
+                f"<div class='eor-status-row'>"
+                f"<span class='eor-status-name'>{method_name}</span>{status_pill_html(status)}"
+                f"</div>",
+                unsafe_allow_html=True,
             )
-        else:
-            cell = f'<span class="eor-param-note">{escape(value)}</span>'
-        rows.append(
-            f'<li><span class="eor-param-name">{escape(name)}</span>{cell}</li>'
+            if result["violations"]:
+                st.warning(f"{t(language, 'violations')}: {', '.join(result['violations'])}", icon=":material/warning:")
+            with st.expander(f"{t(language, 'method_details')}: {method_name}", icon=":material/list_alt:"):
+                st.dataframe(pd.DataFrame([{"Parameter": k, "Status": v} for k, v in result["parameters"].items()]), hide_index=True, use_container_width=True)
+
+    with tab2:
+        st.subheader(t(language, "ml"))
+        if model_result["mode"] == "trained":
+            st.success("Real ensemble models trained from Screening_Original.xlsx are active.", icon=":material/check_circle:")
+        elif model_result.get("warning"):
+            st.warning(t(language, "fallback_warning"), icon=":material/warning:")
+        for model_name, info in model_result["results"].items():
+            st.markdown(f"##### :material/model_training: {model_name}")
+            st.metric(t(language, "predicted"), info["prediction"])
+            st.plotly_chart(plot_probability_chart(info["probabilities"], f"{t(language, 'probability')} - {model_name}"), use_container_width=True)
+
+    with tab3:
+        st.subheader(t(language, "consensus"))
+        results = model_result["results"]
+        consensus_scores = {method: float(np.mean([item["probabilities"].get(method, 0.0) for item in results.values()])) for method in EOR_CLASSES}
+
+        # Display Engine B before applying any Engine A rule weighting.
+        st.markdown(f"##### :material/query_stats: {t(language, 'ml_only_result')}")
+        st.caption("These probabilities come from Engine B only; Engine A has not modified them.")
+        ml_only_rank = sorted(consensus_scores.items(), key=lambda item: item[1], reverse=True)
+        st.dataframe(
+            pd.DataFrame([
+                {"Rank": index, "EOR Method": method, t(language, "ml_mean"): f"{score:.1%}"}
+                for index, (method, score) in enumerate(ml_only_rank, start=1)
+            ]),
+            hide_index=True,
+            use_container_width=True,
         )
-    return f'<ul class="eor-params">{"".join(rows)}</ul>'
-
-
-def callout(text: str, tone: str = "info", icon_name: Optional[str] = None) -> str:
-    default_icon = {"info": "info", "warn": "alert", "ok": "check"}[tone]
-    return (
-        f'<div class="eor-callout eor-callout--{tone}">'
-        f'{icon(icon_name or default_icon, 17)}<span>{escape(text)}</span></div>'
-    )
-
-
-def note_list(items: Sequence[str], tone: str = "muted", icon_name: str = "info") -> str:
-    entries = "".join(
-        f'<li class="eor-note--{tone}">{icon(icon_name, 14)}<span>{escape(item)}</span></li>'
-        for item in items
-    )
-    return f'<ul class="eor-notes">{entries}</ul>'
-
-
-# ---------------------------------------------------------------------------
-# Charts
-# ---------------------------------------------------------------------------
-
-def probability_figure(
-    probabilities: Dict[str, float],
-    highlight: Optional[str] = None,
-    height: Optional[int] = None,
-) -> go.Figure:
-    """Horizontal, mobile-friendly probability bars in the design-system palette."""
-    items = sorted(probabilities.items(), key=lambda item: item[1])
-    labels = [item[0] for item in items]
-    values = [float(item[1]) for item in items]
-    colors = [
-        PLOT_COLORS["accent"] if highlight and label == highlight else PLOT_COLORS["neutral"]
-        for label in labels
-    ]
-    upper = max(values) if values else 1.0
-    fig = go.Figure(
-        go.Bar(
-            x=values,
-            y=labels,
-            orientation="h",
-            marker=dict(color=colors, line=dict(width=0)),
-            text=[f"{value * 100:.1f}%" for value in values],
-            textposition="outside",
-            textfont=dict(size=12, color=PLOT_COLORS["muted"], family=PLOT_COLORS["font"]),
-            hovertemplate="%{y} · %{x:.1%}<extra></extra>",
-            cliponaxis=False,
-            width=0.55,
+        ml_only_fig = go.Figure(data=[go.Bar(x=[item[0] for item in ml_only_rank], y=[item[1] for item in ml_only_rank], marker_color="#3E8FD0")])
+        ml_only_fig.update_layout(
+            title=t(language, "ml_only_result"), xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"),
+            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="IBM Plex Sans, sans-serif", color="#E8EDF4"),
+            height=380, margin=dict(l=20, r=20, t=40, b=100),
         )
-    )
-    fig.update_layout(
-        template=None,
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family=PLOT_COLORS["font"], color=PLOT_COLORS["ink"], size=12.5),
-        showlegend=False,
-        bargap=0.55,
-        barcornerradius=6,
-        height=height or (58 + 40 * max(len(labels), 1)),
-        margin=dict(l=4, r=52, t=6, b=6),
-        xaxis=dict(
-            range=[0, max(upper * 1.22, 0.12)],
-            tickformat=".0%",
-            tickfont=dict(size=11, color=PLOT_COLORS["muted"]),
-            gridcolor=PLOT_COLORS["track"],
-            griddash="solid",
-            gridwidth=1,
-            zeroline=False,
-            showline=False,
-            ticks="",
-            fixedrange=True,
-        ),
-        yaxis=dict(
-            tickfont=dict(size=12.5, color=PLOT_COLORS["ink"]),
-            showgrid=False,
-            zeroline=False,
-            showline=False,
-            ticks="",
-            automargin=True,
-            fixedrange=True,
-        ),
-        hoverlabel=dict(
-            bgcolor="#FFFFFF",
-            bordercolor=TOKENS["line"],
-            font=dict(size=12, color=PLOT_COLORS["ink"], family=PLOT_COLORS["font"]),
-        ),
-    )
-    return fig
+        st.plotly_chart(ml_only_fig, use_container_width=True)
 
-
-def show_figure(fig: go.Figure, key: Optional[str] = None) -> None:
-    st.plotly_chart(
-        fig,
-        key=key,
-        width="stretch",
-        config={"displayModeBar": False, "displaylogo": False, "responsive": True},
-    )
-
-
-def render(html: str) -> None:
-    st.html(html)
+        st.markdown(f"##### :material/stacked_bar_chart: {t(language, 'combined_result')}")
+        st.caption("Engine A rule status is now applied to the standalone Engine B probabilities.")
+        combined_rank = []
+        for method_name in EOR_CLASSES:
+            status = classical_results[method_name]["status"]
+            weight = {"PASS": 1.0, "MARGINAL": 0.7, "FAIL": 0.2}[status]
+            combined_rank.append((method_name, consensus_scores[method_name] * weight, status))
+        combined_rank.sort(key=lambda item: item[1], reverse=True)
+        bar_color = {"PASS": "#37B679", "MARGINAL": "#E8A33D", "FAIL": "#E5484D"}
+        for method_name, score, status in combined_rank:
+            color = bar_color[status]
+            st.markdown(
+                f"<div class='eor-combined-row'>"
+                f"<span class='eor-combined-name'>{method_name}</span>"
+                f"{status_pill_html(status)}"
+                f"<div class='eor-combined-bar-wrap'><div class='eor-combined-bar-fill' "
+                f"style='width:{score * 100:.1f}%;background:{color};'></div></div>"
+                f"<span class='eor-combined-pct eor-mono'>{score * 100:.1f}%</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+        fig = go.Figure(data=[go.Bar(
+            x=[x[0] for x in combined_rank], y=[x[1] for x in combined_rank],
+            marker_color=[bar_color[x[2]] for x in combined_rank],
+        )])
+        fig.update_layout(
+            title=t(language, "combined"), xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"),
+            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="IBM Plex Sans, sans-serif", color="#E8EDF4"),
+            height=420, margin=dict(l=20, r=20, t=40, b=100),
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
 
 if __name__ == "__main__":
