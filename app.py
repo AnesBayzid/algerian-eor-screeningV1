@@ -52,6 +52,7 @@ st.set_page_config(
     page_title="Algerian EOR Screening Platform",
     page_icon="🛢️",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 # ---------------------------------------------------------------------------
@@ -67,14 +68,14 @@ EOR_CLASSES = [
 ]
 
 DEFAULT_INPUTS = {
-    "Lithology": "Carbonate",
-    "Permeability": 120.0,
-    "Porosity": 18.0,
-    "Oil_Viscosity": 8.0,
-    "Temperature": 82.22,
-    "API_Gravity": 32.0,
-    "Depth_m": 1828.8,
-    "Pressure_bar": 172.37,
+    "Lithology": "Sandstone",
+    "Permeability": 70.0,
+    "Porosity": 9.3,
+    "Oil_Viscosity": 0.30,
+    "Temperature": 102.0,
+    "API_Gravity": 43.0,
+    "Depth_m": 3200.0,
+    "Pressure_bar": 190.0,
 }
 
 LANGUAGES = {"English": "en", "Français": "fr", "العربية": "ar"}
@@ -84,6 +85,7 @@ TRANSLATIONS = {
         "title": "Algerian EOR Decision-Support Suite",
         "subtitle": "Dual-engine technical screening: classical rules + physics-informed ML",
         "language": "Language", "inputs": "Reservoir Inputs",
+        "project": "Project", "horizon": "Producing Horizon",
         "preset": "Geological Preset / Lithology Guide", "custom": "Custom field data",
         "manual": "Manual lithology and field data", "lithology": "Lithology",
         "permeability": "Permeability", "porosity": "Porosity", "viscosity": "Oil Viscosity",
@@ -92,6 +94,7 @@ TRANSLATIONS = {
         "guide_text": "Use this general formation-family guide when selecting the dominant lithology for an Algerian reservoir.",
         "proxies": "Physical Proxies", "classical": "Engine 1: Classical Screening",
         "ml": "Engine 2: ML Ensemble", "consensus": "Consensus Dashboard",
+        "tab1_short": "Engine 1", "tab2_short": "Engine 2", "tab3_short": "Consensus Dashboard",
         "ml_only_result": "Engine B: ML-Only Result",
         "combined_result": "Combined Result: Engine A + Engine B",
         "ml_mean": "Mean ML Probability",
@@ -108,12 +111,14 @@ TRANSLATIONS = {
         "title": "Suite algérienne d'aide à la décision EOR",
         "subtitle": "Criblage technique à deux moteurs : règles classiques + ML informé par la physique",
         "language": "Langue", "inputs": "Données du réservoir", "preset": "Préréglage géologique / guide de lithologie",
+        "project": "Projet", "horizon": "Horizon producteur",
         "custom": "Données personnalisées", "manual": "Lithologie et données saisies manuellement", "lithology": "Lithologie",
         "permeability": "Perméabilité", "porosity": "Porosité", "viscosity": "Viscosité de l'huile",
         "temperature": "Température", "gravity": "Gravité API", "depth": "Profondeur", "pressure": "Pression",
         "guide": "Guide géologique algérien",
         "guide_text": "Utilisez ce guide général des familles stratigraphiques pour sélectionner la lithologie dominante d'un réservoir algérien.",
         "proxies": "Indicateurs physiques", "classical": "Moteur 1 : criblage classique", "ml": "Moteur 2 : ensemble ML",
+        "tab1_short": "Moteur 1", "tab2_short": "Moteur 2", "tab3_short": "Tableau de consensus",
         "consensus": "Tableau de consensus", "screening_caption": "PASS = plage idéale, MARGINAL = proche de la limite, FAIL = hors plage.",
         "ml_only_result": "Moteur B : résultat ML seul", "combined_result": "Résultat combiné : moteur A + moteur B", "ml_mean": "Probabilité ML moyenne",
         "engine1_title": "Fenêtres heuristiques classiques (moteur de règles préliminaires)",
@@ -128,12 +133,14 @@ TRANSLATIONS = {
         "title": "منصة دعم قرار الاستخلاص المعزز للنفط في الجزائر",
         "subtitle": "فحص تقني بمحركين: قواعد كلاسيكية وتعلم آلي مدعوم بالفيزياء",
         "language": "اللغة", "inputs": "بيانات المكمن", "preset": "الإعداد الجيولوجي / دليل الصخور",
+        "project": "المشروع", "horizon": "الأفق المنتج",
         "custom": "بيانات مخصصة", "manual": "بيانات الصخور والمكمن يدوياً", "lithology": "الليثولوجيا",
         "permeability": "النفاذية", "porosity": "المسامية", "viscosity": "لزوجة النفط",
         "temperature": "درجة الحرارة", "gravity": "كثافة API", "depth": "العمق", "pressure": "الضغط",
         "guide": "الدليل الجيولوجي الجزائري",
         "guide_text": "استخدم هذا الدليل العام للعائلات التكوينية لاختيار الليثولوجيا السائدة في المكمن الجزائري.",
         "proxies": "المؤشرات الفيزيائية", "classical": "المحرك 1: الفحص الكلاسيكي", "ml": "المحرك 2: ensemble للتعلم الآلي",
+        "tab1_short": "المحرك 1", "tab2_short": "المحرك 2", "tab3_short": "لوحة التوافق",
         "consensus": "لوحة التوافق", "screening_caption": "PASS = النطاق المثالي، MARGINAL = قريب من الحد، FAIL = خارج النطاق.",
         "ml_only_result": "المحرك B: نتيجة التعلم الآلي فقط", "combined_result": "النتيجة المجمعة: المحرك A + المحرك B", "ml_mean": "متوسط احتمال التعلم الآلي",
         "engine1_title": "نوافذ الفحص الكلاسيكية الإرشادية (محرك القواعد الأولي)",
@@ -262,6 +269,15 @@ def apply_language_css(language: str) -> None:
             .eor-combined-name {{ flex-basis:100%; }}
             .eor-combined-pct {{ flex:0 0 auto; }}
         }}
+
+        /* ---- Make the sidebar open/close toggle obvious, not a faint arrow ---- */
+        [data-testid="collapsedControl"] {{
+            background:var(--eor-accent) !important;
+            border-radius:8px !important;
+            padding:6px !important;
+            box-shadow:0 2px 8px rgba(0,0,0,0.35);
+        }}
+        [data-testid="collapsedControl"] svg {{ color:#0B1220 !important; fill:#0B1220 !important; }}
 
         /* Hide the Streamlit Community Cloud "View source on GitHub" button.
            This button is sent to the page by the Community Cloud host
@@ -954,6 +970,11 @@ def main() -> None:
         </div>""",
         unsafe_allow_html=True,
     )
+    st.info(
+        "Use the panel on the left to enter reservoir data (tap the "
+        ":material/chevron_right: arrow, top-left, if it's closed).",
+        icon=":material/edit_note:",
+    )
 
     with st.sidebar:
         st.header(f":material/tune: {t(language, 'inputs')}")
@@ -962,24 +983,32 @@ def main() -> None:
             st.dataframe(GEOLOGICAL_LITHOLOGY_GUIDE, hide_index=True, use_container_width=True)
 
         st.markdown(
+            "<div class='eor-section-label'>:material/folder: Project</div>",
+            unsafe_allow_html=True,
+        )
+        project_cols = st.columns(2)
+        project_name = project_cols[0].text_input(t(language, "project"), value="Project 1")
+        producing_horizon = project_cols[1].text_input(t(language, "horizon"), value="Trias S1")
+
+        st.markdown(
             "<div class='eor-section-label'>:material/layers: Rock &amp; reservoir</div>",
             unsafe_allow_html=True,
         )
         lithology_options = ["Carbonate", "Carbonate / Dolomite", "Carbonate / Limestone", "Sandstone", "Sandstone / Quartzite", "Mixed Clastic", "Unknown"]
-        lithology = st.selectbox(t(language, "lithology"), lithology_options, index=0)
+        lithology = st.selectbox(t(language, "lithology"), lithology_options, index=lithology_options.index("Sandstone"))
 
-        permeability = st.number_input(f"{t(language, 'permeability')} (mD)", value=120.0, min_value=0.1, step=1.0)
-        porosity_pct = st.number_input(f"{t(language, 'porosity')} (%)", value=18.0, min_value=0.1, max_value=60.0, step=0.1)
+        permeability = st.number_input(f"{t(language, 'permeability')} (mD)", value=70.0, min_value=0.1, step=1.0)
+        porosity_pct = st.number_input(f"{t(language, 'porosity')} (%)", value=9.3, min_value=0.1, max_value=60.0, step=0.1)
 
         st.markdown(
             "<div class='eor-section-label'>:material/height: Depth &amp; pressure</div>",
             unsafe_allow_html=True,
         )
         depth_unit = st.selectbox(f"{t(language, 'depth')} unit", ["m", "ft"])
-        depth = st.number_input(f"{t(language, 'depth')} ({depth_unit})", value=1828.8 if depth_unit == "m" else 6000.0, min_value=1.0, step=100.0)
+        depth = st.number_input(f"{t(language, 'depth')} ({depth_unit})", value=3200.0 if depth_unit == "m" else 10500.0, min_value=1.0, step=100.0)
         pressure_unit = st.selectbox(f"{t(language, 'pressure')} unit", ["bar", "psi", "MPa"])
-        pressure = st.number_input(f"{t(language, 'pressure')} ({pressure_unit})", value=172.37 if pressure_unit == "bar" else (2500.0 if pressure_unit == "psi" else 17.24), min_value=0.1, step=10.0)
-        mmp = st.number_input(f"MMP ({pressure_unit}, optional)", value=0.0, min_value=0.0, step=5.0 if pressure_unit == "bar" else 50.0, help="Enter 0 when MMP is unavailable; depth will be used only as a proxy for miscible-gas screening.")
+        pressure = st.number_input(f"{t(language, 'pressure')} ({pressure_unit})", value=190.0 if pressure_unit == "bar" else (2756.0 if pressure_unit == "psi" else 19.0), min_value=0.1, step=10.0)
+        mmp = st.number_input(f"MMP ({pressure_unit}, optional)", value=270.0 if pressure_unit == "bar" else (3916.0 if pressure_unit == "psi" else 27.0), min_value=0.0, step=5.0 if pressure_unit == "bar" else 50.0, help="Enter 0 when MMP is unavailable; depth will be used only as a proxy for miscible-gas screening.")
         mmp_psi = mmp if pressure_unit == "psi" else mmp * {"bar": 14.5037738, "MPa": 145.037738}.get(pressure_unit, 1.0)
 
         st.markdown(
@@ -987,11 +1016,11 @@ def main() -> None:
             unsafe_allow_html=True,
         )
         temperature_unit = st.selectbox(f"{t(language, 'temperature')} unit", ["°C", "°F"])
-        temperature = st.number_input(f"{t(language, 'temperature')} ({temperature_unit})", value=82.22 if temperature_unit == "°C" else 180.0, min_value=-50.0, step=1.0)
+        temperature = st.number_input(f"{t(language, 'temperature')} ({temperature_unit})", value=102.0 if temperature_unit == "°C" else 215.6, min_value=-50.0, step=1.0)
         viscosity_unit = st.selectbox(f"{t(language, 'viscosity')} unit", ["cP", "mPa·s"])
-        viscosity = st.number_input(f"{t(language, 'viscosity')} ({viscosity_unit})", value=8.0, min_value=0.001, step=0.1)
+        viscosity = st.number_input(f"{t(language, 'viscosity')} ({viscosity_unit})", value=0.30, min_value=0.001, step=0.1)
         gravity_unit = st.selectbox(f"{t(language, 'gravity')} unit", ["°API", "Specific Gravity (SG)"])
-        gravity = st.number_input(f"{t(language, 'gravity')} ({gravity_unit})", value=32.0 if gravity_unit == "°API" else 0.865, min_value=0.01, step=0.1)
+        gravity = st.number_input(f"{t(language, 'gravity')} ({gravity_unit})", value=43.0 if gravity_unit == "°API" else 0.811, min_value=0.01, step=0.1)
 
     field_units = convert_to_field_units(depth, depth_unit, pressure, pressure_unit, temperature, temperature_unit, viscosity, viscosity_unit, gravity, gravity_unit)
     input_data = {
@@ -1001,6 +1030,8 @@ def main() -> None:
     }
 
     st.subheader(f":material/analytics: {t(language, 'proxies')}")
+    if project_name or producing_horizon:
+        st.caption(f"<span class='eor-mono'>{project_name}, {producing_horizon} ({lithology})</span>", unsafe_allow_html=True)
     render_kpi_cards(input_data)
     st.caption(
         f"{t(language, 'pressure_note')} "
@@ -1013,9 +1044,9 @@ def main() -> None:
     classical_results = classical_screening(lithology, permeability, normalize_percentage_to_fraction(porosity_pct), field_units["Oil_Viscosity"], field_units["Temperature"], field_units["API_Gravity"], field_units["Depth_ft"], field_units["Pressure_psi"], mmp_psi if mmp_psi > 0 else None)
     model_result = predict_ml_system(input_data)
     tab1, tab2, tab3 = st.tabs([
-        f":material/rule: {t(language, 'engine1_title')}",
-        f":material/science: {t(language, 'ml')}",
-        f":material/insights: {t(language, 'consensus')}",
+        f":material/rule: {t(language, 'tab1_short')}",
+        f":material/science: {t(language, 'tab2_short')}",
+        f":material/insights: {t(language, 'tab3_short')}",
     ])
 
     with tab1:
