@@ -1,2 +1,19 @@
 [client]
 toolbarMode = "minimal"
+
+[theme]
+base = "dark"
+primaryColor = "#2E8B6B"
+backgroundColor = "#0B1220"
+secondaryBackgroundColor = "#131C2B"
+textColor = "#E8EDF4"
+borderColor = "#26344A"
+linkColor = "#46B58A"
+font = "'IBM Plex Sans':https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+
+greenColor = "#37B679"
+orangeColor = "#E8A33D"
+redColor = "#E5484D"
+blueColor = "#3E8FD0"
+
+chartCategoricalColors = ["#2E8B6B", "#3E8FD0", "#E8A33D", "#8C7BD6", "#E5484D", "#4FB0C6"]
