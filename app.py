@@ -5,15 +5,13 @@ Dual-Engine Streamlit App for:
   - Classical reservoir screening rules
   - Physics-informed ML ensemble using V5-style engineered features
 
-This version is intentionally robust to missing trained model artifacts.
-If the model files are not present, the app does not crash and instead
-falls back to a transparent, rule-based placeholder probability engine so the
-UI remains usable while the user trains or saves the real models.
+The app loads trained model artifacts for inference. If artifacts are absent
+but the private training workbook is available, it trains and caches the
+models locally; heuristic placeholder output is reserved for training failure.
 """
 
 from __future__ import annotations
 
-import base64
 import json
 import math
 import os
@@ -101,6 +99,8 @@ TRANSLATIONS = {
         "subtitle": "Dual-engine technical screening: classical rules + physics-informed ML",
         "language": "Language", "inputs": "Reservoir Inputs",
         "project": "Project", "horizon": "Producing Horizon",
+        "section_project": "Project", "section_rock": "Rock & reservoir",
+        "section_depth": "Depth & pressure", "section_fluid": "Fluid & thermal",
         "preset": "Geological Preset / Lithology Guide", "custom": "Custom field data",
         "manual": "Manual lithology and field data", "lithology": "Lithology",
         "permeability": "Permeability", "porosity": "Porosity", "viscosity": "Oil Viscosity",
@@ -111,15 +111,20 @@ TRANSLATIONS = {
         "ml": "Engine 2: ML Ensemble", "consensus": "Consensus Dashboard",
         "tab1_short": "Engine 1", "tab2_short": "Engine 2", "tab3_short": "Consensus Dashboard",
         "ml_only_result": "Engine B: ML-Only Result",
-        "combined_result": "Combined Result: Engine A + Engine B",
-        "ml_mean": "Mean ML Probability",
+        "combined_result": "Rule-Adjusted Score: Engine A + Engine B",
+        "ml_mean": "Engine B Probability (%)",
+        "model_comparison": "Model Probability Comparison",
+        "model_detail": "Detailed probability view",
+        "combined_score": "Rule-adjusted score",
         "engine1_title": "Classical Heuristic Screening Windows (Preliminary Rules Engine)",
         "engine1_disclaimer": "These are initial heuristic screening windows. Detailed screening requires local thermodynamics, mobility-ratio analysis, and modern chemical-formulation testing.",
         "screening_caption": "PASS = ideal range, MARGINAL = near boundary, FAIL = outside the screening range.",
         "method_details": "Parameter details", "violations": "Violations", "predicted": "Predicted Method",
         "fallback": "Fallback mode is active because trained model artifacts were not found.",
         "fallback_warning": "No trained model files were found. Results are heuristic placeholders, not validated model predictions.",
-        "probability": "Probability", "eor_method": "EOR Method", "combined": "Combined Technical Confidence",
+        "probability": "Probability", "eor_method": "EOR Method", "combined": "Rule-adjusted score",
+        "engine2_caption": "Compare the three trained algorithms on the same field inputs. Select a model below to inspect its full probability distribution.",
+        "worked_example": "Worked example: Project 1, Trias S1 sandstone. Use the left sidebar to enter a different reservoir.",
         "pressure_note": "Depth and pressure are displayed and normalized, but current classical rules do not yet apply formation-pressure or MMP correlations.",
     },
     "fr": {
@@ -127,6 +132,8 @@ TRANSLATIONS = {
         "subtitle": "Criblage technique à deux moteurs : règles classiques + ML informé par la physique",
         "language": "Langue", "inputs": "Données du réservoir", "preset": "Préréglage géologique / guide de lithologie",
         "project": "Projet", "horizon": "Horizon producteur",
+        "section_project": "Projet", "section_rock": "Roche et réservoir",
+        "section_depth": "Profondeur et pression", "section_fluid": "Fluides et thermique",
         "custom": "Données personnalisées", "manual": "Lithologie et données saisies manuellement", "lithology": "Lithologie",
         "permeability": "Perméabilité", "porosity": "Porosité", "viscosity": "Viscosité de l'huile",
         "temperature": "Température", "gravity": "Gravité API", "depth": "Profondeur", "pressure": "Pression",
@@ -135,13 +142,16 @@ TRANSLATIONS = {
         "proxies": "Indicateurs physiques", "classical": "Moteur 1 : criblage classique", "ml": "Moteur 2 : ensemble ML",
         "tab1_short": "Moteur 1", "tab2_short": "Moteur 2", "tab3_short": "Tableau de consensus",
         "consensus": "Tableau de consensus", "screening_caption": "PASS = plage idéale, MARGINAL = proche de la limite, FAIL = hors plage.",
-        "ml_only_result": "Moteur B : résultat ML seul", "combined_result": "Résultat combiné : moteur A + moteur B", "ml_mean": "Probabilité ML moyenne",
+        "ml_only_result": "Moteur B : résultat ML seul", "combined_result": "Score ajusté par les règles : moteurs A + B", "ml_mean": "Probabilité du moteur B (%)",
+        "model_comparison": "Comparaison des probabilités des modèles", "model_detail": "Détail des probabilités", "combined_score": "Score ajusté par les règles",
         "engine1_title": "Fenêtres heuristiques classiques (moteur de règles préliminaires)",
         "engine1_disclaimer": "Ces fenêtres sont heuristiques et préliminaires. Le criblage détaillé nécessite la thermodynamique locale, les rapports de mobilité et des essais de formulations chimiques modernes.",
         "method_details": "Détails des paramètres", "violations": "Dépassements", "predicted": "Méthode prédite",
         "fallback": "Le mode secours est actif car les modèles entraînés sont absents.",
         "fallback_warning": "Aucun modèle entraîné trouvé. Les résultats sont heuristiques et non validés.",
-        "probability": "Probabilité", "eor_method": "Méthode EOR", "combined": "Confiance technique combinée",
+        "probability": "Probabilité", "eor_method": "Méthode EOR", "combined": "Score ajusté par les règles",
+        "engine2_caption": "Comparez les trois algorithmes sur les mêmes données. Sélectionnez un modèle pour examiner sa distribution complète des probabilités.",
+        "worked_example": "Exemple : Projet 1, grès Trias S1. Utilisez la barre latérale pour saisir un autre réservoir.",
         "pressure_note": "La profondeur et la pression sont normalisées, mais les règles actuelles n'appliquent pas encore les corrélations de pression de formation ou de MMP.",
     },
     "ar": {
@@ -149,6 +159,8 @@ TRANSLATIONS = {
         "subtitle": "فحص تقني بمحركين: قواعد كلاسيكية وتعلم آلي مدعوم بالفيزياء",
         "language": "اللغة", "inputs": "بيانات المكمن", "preset": "الإعداد الجيولوجي / دليل الصخور",
         "project": "المشروع", "horizon": "الأفق المنتج",
+        "section_project": "المشروع", "section_rock": "الصخر والمكمن",
+        "section_depth": "العمق والضغط", "section_fluid": "السوائل والحرارة",
         "custom": "بيانات مخصصة", "manual": "بيانات الصخور والمكمن يدوياً", "lithology": "الليثولوجيا",
         "permeability": "النفاذية", "porosity": "المسامية", "viscosity": "لزوجة النفط",
         "temperature": "درجة الحرارة", "gravity": "كثافة API", "depth": "العمق", "pressure": "الضغط",
@@ -157,13 +169,16 @@ TRANSLATIONS = {
         "proxies": "المؤشرات الفيزيائية", "classical": "المحرك 1: الفحص الكلاسيكي", "ml": "المحرك 2: ensemble للتعلم الآلي",
         "tab1_short": "المحرك 1", "tab2_short": "المحرك 2", "tab3_short": "لوحة التوافق",
         "consensus": "لوحة التوافق", "screening_caption": "PASS = النطاق المثالي، MARGINAL = قريب من الحد، FAIL = خارج النطاق.",
-        "ml_only_result": "المحرك B: نتيجة التعلم الآلي فقط", "combined_result": "النتيجة المجمعة: المحرك A + المحرك B", "ml_mean": "متوسط احتمال التعلم الآلي",
+        "ml_only_result": "المحرك B: نتيجة التعلم الآلي فقط", "combined_result": "النتيجة المعدلة بالقواعد: المحركان A وB", "ml_mean": "احتمال المحرك B (%)",
+        "model_comparison": "مقارنة احتمالات النماذج", "model_detail": "تفصيل الاحتمالات", "combined_score": "النتيجة المعدلة بالقواعد",
         "engine1_title": "نوافذ الفحص الكلاسيكية الإرشادية (محرك القواعد الأولي)",
         "engine1_disclaimer": "هذه حدود فحص إرشادية أولية. يتطلب الفحص التفصيلي الديناميكا الحرارية المحلية ونسب الحركة واختبارات التركيبات الكيميائية الحديثة.",
         "method_details": "تفاصيل المعايير", "violations": "المخالفات", "predicted": "الطريقة المتوقعة",
         "fallback": "الوضع الاحتياطي فعال لأن ملفات النماذج غير موجودة.",
         "fallback_warning": "لم يتم العثور على نموذج مدرب. النتائج تقريبية وليست تنبؤات نموذج معتمد.",
-        "probability": "الاحتمال", "eor_method": "طريقة EOR", "combined": "الثقة التقنية المجمعة",
+        "probability": "الاحتمال", "eor_method": "طريقة EOR", "combined": "النتيجة المعدلة بالقواعد",
+        "engine2_caption": "قارن الخوارزميات الثلاث على بيانات المكمن نفسها. اختر نموذجاً لعرض توزيع احتمالاته بالتفصيل.",
+        "worked_example": "مثال تطبيقي: المشروع 1، الحجر الرملي Trias S1. استخدم الشريط الجانبي لإدخال مكمن آخر.",
         "pressure_note": "تم توحيد العمق والضغط، لكن القواعد الحالية لا تطبق بعد علاقات ضغط المكمن أو MMP.",
     },
 }
@@ -180,24 +195,11 @@ def t(language: str, key: str) -> str:
     return TRANSLATIONS.get(language, TRANSLATIONS["en"]).get(key, key)
 
 
-@st.cache_data
-def load_flag_image_base64(filename: str = "algeria-flag.png") -> str | None:
-    """Read the flag PNG from the repo root and return it as a base64 string.
-
-    Returns None if the file isn't found, so the caller can fall back
-    gracefully instead of breaking the header layout.
-    """
-    path = Path(__file__).resolve().parent / filename
-    if not path.exists():
-        return None
-    return base64.b64encode(path.read_bytes()).decode("utf-8")
-
-
 def apply_language_css(language: str) -> None:
     direction = "rtl" if language == "ar" else "ltr"
     st.markdown(
         f"""<style>
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
         /* ---- Design tokens ------------------------------------------- */
         :root {{
@@ -217,6 +219,7 @@ def apply_language_css(language: str) -> None:
         }}
 
         html, body, [data-testid="stAppViewContainer"] {{ direction: {direction}; }}
+        [data-testid="stAppViewContainer"] {{ font-family:'IBM Plex Sans',sans-serif; }}
 
         /* ---- Header / brand -------------------------------------------- */
         .eor-header {{
@@ -225,7 +228,10 @@ def apply_language_css(language: str) -> None:
             border-bottom:1px solid var(--eor-border);
         }}
         .eor-brand {{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }}
-        .dz-flag-img {{ width:44px; height:30px; object-fit:cover; border:1px solid var(--eor-border); border-radius:3px; display:block; flex-shrink:0; }}
+        .dz-flag {{ width:44px; height:30px; position:relative; overflow:hidden; flex:0 0 44px; border:1px solid var(--eor-border); border-radius:2px; background:linear-gradient(90deg,#006233 0 50%,#fff 50%); }}
+        .dz-flag-crescent {{ position:absolute; width:16px; height:16px; left:14px; top:6px; border-radius:50%; background:#d21034; }}
+        .dz-flag-crescent:after {{ content:''; position:absolute; width:13px; height:13px; left:5px; top:-3px; border-radius:50%; background:#fff; }}
+        .dz-flag-star {{ position:absolute; left:24px; top:7px; color:#d21034; font-size:11px; line-height:1; }}
         .eor-brand h1 {{ margin:0; font-size:1.5rem; font-weight:600; letter-spacing:-0.01em; line-height:1.25; }}
         .eor-subtitle {{ color:var(--eor-text-muted); font-size:0.92rem; margin:0; }}
 
@@ -308,42 +314,14 @@ def apply_language_css(language: str) -> None:
             .eor-desktop-only {{ display:none !important; }}
         }}
 
-        /* ---- Make the sidebar open/close toggle obvious, not a faint arrow ----
-           This element only exists in the DOM while the sidebar is actually
-           collapsed (Streamlit removes it once expanded), so the pulse only
-           ever runs when it's actually useful - no extra condition needed. */
-        @keyframes eor-pulse-glow {{
-            0%   {{ box-shadow:0 0 0 0 rgba(46,139,107,0.65); }}
-            70%  {{ box-shadow:0 0 0 14px rgba(46,139,107,0); }}
-            100% {{ box-shadow:0 0 0 0 rgba(46,139,107,0); }}
-        }}
+        /* Persistent accent and focus treatment without a distracting pulse. */
         [data-testid="collapsedControl"] {{
             background:var(--eor-accent) !important;
             border-radius:8px !important;
             padding:6px !important;
-            animation: eor-pulse-glow 2.2s ease-out infinite;
+            box-shadow:0 2px 8px rgba(0,0,0,0.35);
         }}
         [data-testid="collapsedControl"] svg {{ color:#0B1220 !important; fill:#0B1220 !important; }}
-        @media (prefers-reduced-motion: reduce) {{
-            [data-testid="collapsedControl"] {{ animation:none; box-shadow:0 2px 8px rgba(0,0,0,0.35); }}
-        }}
-
-        /* Hide the Streamlit Community Cloud "View source on GitHub" button.
-           This button is sent to the page by the Community Cloud host
-           itself (not part of the app's own toolbar), so client.toolbarMode
-           has no effect on it - CSS is the only lever available here.
-           The icon (epm40z21) sits two levels deep inside the button, not
-           as a direct child, so this must use a plain descendant match
-           (":has(div...)"), not a direct-child match (":has(> div...)"),
-           or it silently fails to match the button at all.
-           If a future Streamlit/Community Cloud update changes this hashed
-           class name, re-inspect the icon (element picker -> Copy element)
-           and swap epm40z21 below for the new one. */
-        button[data-testid="stBaseButton-header"]:has(
-            div[data-testid="stToolbarActionButtonIcon"].epm40z21
-        ) {{
-            display: none !important;
-        }}
 
         </style>""",
         unsafe_allow_html=True,
@@ -1042,13 +1020,10 @@ def main() -> None:
     language = LANGUAGES[language_name]
     apply_language_css(language)
 
-    flag_b64 = load_flag_image_base64("algeria-flag.png")
-    if flag_b64:
-        flag_html = f"<img class='dz-flag-img' src='data:image/png;base64,{flag_b64}' alt='Algeria flag' />"
-    else:
-        # Fallback if the PNG isn't found next to app.py, so the header
-        # still renders instead of breaking.
-        flag_html = "🇩🇿"
+    flag_html = (
+        "<div class='dz-flag' role='img' aria-label='Algeria flag'>"
+        "<span class='dz-flag-crescent'></span><span class='dz-flag-star'>★</span></div>"
+    )
     st.markdown(
         f"""<div class='eor-header'>
             <div class='eor-brand'>{flag_html}<h1>{t(language, 'title')}</h1></div>
@@ -1056,21 +1031,16 @@ def main() -> None:
         </div>""",
         unsafe_allow_html=True,
     )
-    st.info(
-        "Showing a worked example (Project 1, Trias S1 sandstone). Use the "
-        "panel on the left to enter your own reservoir data (tap the "
-        ":material/chevron_right: arrow, top-left, if it's closed).",
-        icon=":material/edit_note:",
-    )
+    st.info(t(language, "worked_example"), icon=":material/edit_note:")
 
     with st.sidebar:
         st.header(f":material/tune: {t(language, 'inputs')}")
         with st.expander(t(language, "guide"), expanded=False, icon=":material/map:"):
             st.write(t(language, "guide_text"))
-            st.dataframe(GEOLOGICAL_LITHOLOGY_GUIDE, hide_index=True, use_container_width=True)
+            st.dataframe(GEOLOGICAL_LITHOLOGY_GUIDE, hide_index=True, width="stretch")
 
         st.markdown(
-            "<div class='eor-section-label'>Project</div>",
+            f"<div class='eor-section-label'>{t(language, 'section_project')}</div>",
             unsafe_allow_html=True,
         )
         project_cols = st.columns(2)
@@ -1078,7 +1048,7 @@ def main() -> None:
         producing_horizon = project_cols[1].text_input(t(language, "horizon"), value="Trias S1")
 
         st.markdown(
-            "<div class='eor-section-label'>Rock &amp; reservoir</div>",
+            f"<div class='eor-section-label'>{t(language, 'section_rock')}</div>",
             unsafe_allow_html=True,
         )
         lithology_options = ["Carbonate", "Carbonate / Dolomite", "Carbonate / Limestone", "Sandstone", "Sandstone / Quartzite", "Mixed Clastic", "Unknown"]
@@ -1088,7 +1058,7 @@ def main() -> None:
         porosity_pct = st.number_input(f"{t(language, 'porosity')} (%)", value=9.3, min_value=0.1, max_value=60.0, step=0.1)
 
         st.markdown(
-            "<div class='eor-section-label'>Depth &amp; pressure</div>",
+            f"<div class='eor-section-label'>{t(language, 'section_depth')}</div>",
             unsafe_allow_html=True,
         )
         depth_unit = st.selectbox(f"{t(language, 'depth')} unit", ["m", "ft"])
@@ -1099,7 +1069,7 @@ def main() -> None:
         mmp_psi = mmp if pressure_unit == "psi" else mmp * {"bar": 14.5037738, "MPa": 145.037738}.get(pressure_unit, 1.0)
 
         st.markdown(
-            "<div class='eor-section-label'>Fluid &amp; thermal</div>",
+            f"<div class='eor-section-label'>{t(language, 'section_fluid')}</div>",
             unsafe_allow_html=True,
         )
         temperature_unit = st.selectbox(f"{t(language, 'temperature')} unit", ["°C", "°F"])
@@ -1158,26 +1128,66 @@ def main() -> None:
                 if result["violations"]:
                     st.warning(f"{t(language, 'violations')}: {', '.join(result['violations'])}", icon=":material/warning:")
                 with st.expander(f"{t(language, 'method_details')}", icon=":material/list_alt:"):
-                    st.dataframe(pd.DataFrame([{"Parameter": k, "Status": v} for k, v in result["parameters"].items()]), hide_index=True, use_container_width=True)
+                    st.dataframe(pd.DataFrame([{"Parameter": k, "Status": v} for k, v in result["parameters"].items()]), hide_index=True, width="stretch")
 
     with tab2:
         st.subheader(t(language, "ml"))
+        st.caption(t(language, "engine2_caption"))
         if model_result["mode"] == "trained":
             st.success("Real ensemble models trained from Screening_Original.xlsx are active.", icon=":material/check_circle:")
         elif model_result.get("warning"):
             st.warning(t(language, "fallback_warning"), icon=":material/warning:")
 
-        # Display order only (Random Forest first); does not affect the
-        # consensus/combined averaging in the next tab, which already
-        # iterates over .values() regardless of dict order.
         display_order = sorted(
             model_result["results"].items(),
             key=lambda item: 0 if "random forest" in item[0].lower() else 1,
         )
-        for model_name, info in display_order:
-            st.markdown(f"##### :material/model_training: {model_name}")
-            st.metric(t(language, "predicted"), info["prediction"])
-            st.plotly_chart(plot_probability_chart(info["probabilities"], f"{t(language, 'probability')} - {model_name}"), use_container_width=True)
+        prediction_cols = st.columns(len(display_order))
+        for col, (model_name, info) in zip(prediction_cols, display_order):
+            col.metric(model_name, info["prediction"])
+
+        model_names = [name for name, _ in display_order]
+        probability_matrix = [
+            [display_order_model[1]["probabilities"].get(class_name, 0.0) for class_name in EOR_CLASSES]
+            for display_order_model in display_order
+        ]
+        probability_text = [[f"{value:.1%}" for value in row] for row in probability_matrix]
+        comparison_fig = go.Figure(data=[go.Heatmap(
+            z=probability_matrix,
+            x=EOR_CLASSES,
+            y=model_names,
+            text=probability_text,
+            texttemplate="%{text}",
+            colorscale=[[0.0, "#182338"], [0.5, "#286B63"], [1.0, "#46B58A"]],
+            zmin=0,
+            zmax=1,
+            colorbar=dict(title="Probability"),
+            hovertemplate="Model: %{y}<br>EOR method: %{x}<br>Probability: %{z:.1%}<extra></extra>",
+        )])
+        comparison_fig.update_layout(
+            title=None,
+            xaxis_title=t(language, "eor_method"),
+            yaxis_title="Model",
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="IBM Plex Sans, sans-serif", color="#E8EDF4"),
+            height=300,
+            margin=dict(l=20, r=20, t=10, b=110),
+        )
+        st.markdown(f"##### :material/compare_arrows: {t(language, 'model_comparison')}")
+        st.plotly_chart(comparison_fig, width="stretch")
+
+        selected_model = st.selectbox(
+            t(language, "model_detail"),
+            model_names,
+            index=0,
+            key="engine_b_detail_model",
+        )
+        st.plotly_chart(
+            plot_probability_chart(model_result["results"][selected_model]["probabilities"], ""),
+            width="stretch",
+        )
 
     with tab3:
         st.subheader(t(language, "consensus"))
@@ -1190,15 +1200,21 @@ def main() -> None:
         rf_key = next((name for name in results if "random forest" in name.lower()), None)
         if rf_key is not None:
             consensus_scores = {method: float(results[rf_key]["probabilities"].get(method, 0.0)) for method in EOR_CLASSES}
+            score_source = rf_key
         else:
             # Fallback/heuristic mode has no "Random Forest" entry; average
             # over whatever single engine is available instead of failing.
             consensus_scores = {method: float(np.mean([item["probabilities"].get(method, 0.0) for item in results.values()])) for method in EOR_CLASSES}
+            score_source = "mean of available fallback outputs"
 
         # Combined result (Engine A rule status applied to Engine B
         # probabilities) is the headline number, so it's shown first.
         st.markdown(f"##### :material/stacked_bar_chart: {t(language, 'combined_result')}")
-        st.caption("Engine A rule status is now applied to the standalone Engine B probabilities. Bars are scaled relative to the top-ranked method; the % label shows the real score.")
+        st.caption(f"Engine B source: {score_source}. Engine A applies a heuristic multiplier to produce a screening score; this is not a calibrated success probability.")
+        st.markdown(
+            f"{status_pill_html('PASS')} &nbsp; {status_pill_html('MARGINAL')} &nbsp; {status_pill_html('FAIL')}",
+            unsafe_allow_html=True,
+        )
         combined_rank = []
         for method_name in EOR_CLASSES:
             status = classical_results[method_name]["status"]
@@ -1231,19 +1247,19 @@ def main() -> None:
             marker_color=[bar_color[x[2]] for x in combined_rank],
         )])
         fig.update_layout(
-            xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"),
+            xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "combined_score"),
             template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             font=dict(family="IBM Plex Sans, sans-serif", color="#E8EDF4"),
             height=400, margin=dict(l=20, r=20, t=10, b=100),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         st.divider()
 
         # Engine B on its own, before Engine A's rule weighting, shown second
         # as supporting detail behind the headline combined result above.
         st.markdown(f"##### :material/query_stats: {t(language, 'ml_only_result')}")
-        st.caption("These probabilities come from the Random Forest model only (Engine B); Engine A has not modified them.")
+        st.caption(f"Engine B only: probabilities from {score_source}; Engine A has not modified them.")
         ml_only_rank = sorted(consensus_scores.items(), key=lambda item: item[1], reverse=True)
         st.dataframe(
             pd.DataFrame([
@@ -1251,7 +1267,7 @@ def main() -> None:
                 for index, (method, score) in enumerate(ml_only_rank, start=1)
             ]),
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
         ml_only_fig = go.Figure(data=[go.Bar(x=[item[0] for item in ml_only_rank], y=[item[1] for item in ml_only_rank], marker_color="#3E8FD0")])
         ml_only_fig.update_layout(
@@ -1260,7 +1276,7 @@ def main() -> None:
             font=dict(family="IBM Plex Sans, sans-serif", color="#E8EDF4"),
             height=360, margin=dict(l=20, r=20, t=10, b=100),
         )
-        st.plotly_chart(ml_only_fig, use_container_width=True)
+        st.plotly_chart(ml_only_fig, width="stretch")
 
 
 if __name__ == "__main__":
