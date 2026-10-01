@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from PIL import Image, ImageDraw
 
 try:
     import joblib
@@ -48,9 +49,23 @@ from sklearn.metrics import accuracy_score, f1_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
+def _build_favicon() -> Image.Image:
+    """Small palette-matched favicon (accent-green ring on transparent
+    background) generated in-code, so it matches the app's actual color
+    system instead of a generic emoji that doesn't track the palette.
+    """
+    size = 64
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    accent = (46, 139, 107, 255)  # #2E8B6B
+    draw.ellipse((4, 4, size - 4, size - 4), outline=accent, width=7)
+    draw.ellipse((24, 24, size - 24, size - 24), fill=accent)
+    return img
+
+
 st.set_page_config(
     page_title="Algerian EOR Screening Platform",
-    page_icon="🛢️",
+    page_icon=_build_favicon(),
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -210,7 +225,7 @@ def apply_language_css(language: str) -> None:
             border-bottom:1px solid var(--eor-border);
         }}
         .eor-brand {{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }}
-        .dz-flag-img {{ width:38px; height:26px; object-fit:cover; border:1px solid var(--eor-border); border-radius:3px; display:block; flex-shrink:0; }}
+        .dz-flag-img {{ width:44px; height:30px; object-fit:cover; border:1px solid var(--eor-border); border-radius:3px; display:block; flex-shrink:0; }}
         .eor-brand h1 {{ margin:0; font-size:1.5rem; font-weight:600; letter-spacing:-0.01em; line-height:1.25; }}
         .eor-subtitle {{ color:var(--eor-text-muted); font-size:0.92rem; margin:0; }}
 
@@ -239,6 +254,7 @@ def apply_language_css(language: str) -> None:
             flex-wrap:wrap;
         }}
         .eor-status-row:last-child {{ border-bottom:none; }}
+        .eor-status-row-flush {{ border-bottom:none; padding:2px 2px 10px 2px; }}
         .eor-status-name {{ display:flex; align-items:center; gap:8px; font-weight:500; }}
         .eor-pill {{
             display:inline-flex; align-items:center; gap:4px;
@@ -259,6 +275,24 @@ def apply_language_css(language: str) -> None:
         .eor-combined-bar-fill {{ height:100%; border-radius:6px; }}
         .eor-combined-pct {{ flex:0 0 56px; text-align:right; font-family:var(--eor-mono); font-size:0.85rem; }}
 
+        /* ---- Native alert boxes (st.info/warning/success/error) match the
+           same card language (radius + hairline border) as the rest of the
+           design system, instead of Streamlit's slightly different default
+           rounding/padding sitting next to custom cards. Only cosmetic
+           properties are touched; color/icon logic is left to Streamlit. */
+        [data-testid="stAlert"] {{
+            border-radius:var(--eor-radius) !important;
+            border:1px solid var(--eor-border) !important;
+        }}
+
+        /* ---- Bordered containers (st.container(border=True)) reuse the
+           same panel background/radius as KPI cards for one consistent
+           "card" language across the app. */
+        [data-testid="stVerticalBlockBorderWrapper"] {{
+            border-radius:var(--eor-radius) !important;
+            border-color:var(--eor-border) !important;
+        }}
+
         /* ---- Numeric / mono utility -------------------------------------- */
         .eor-mono {{ font-family:var(--eor-mono); }}
         .eor-caption-like {{ color:var(--eor-text-muted); font-size:0.85rem; margin:2px 0 10px 0; }}
@@ -274,14 +308,25 @@ def apply_language_css(language: str) -> None:
             .eor-desktop-only {{ display:none !important; }}
         }}
 
-        /* ---- Make the sidebar open/close toggle obvious, not a faint arrow ---- */
+        /* ---- Make the sidebar open/close toggle obvious, not a faint arrow ----
+           This element only exists in the DOM while the sidebar is actually
+           collapsed (Streamlit removes it once expanded), so the pulse only
+           ever runs when it's actually useful - no extra condition needed. */
+        @keyframes eor-pulse-glow {{
+            0%   {{ box-shadow:0 0 0 0 rgba(46,139,107,0.65); }}
+            70%  {{ box-shadow:0 0 0 14px rgba(46,139,107,0); }}
+            100% {{ box-shadow:0 0 0 0 rgba(46,139,107,0); }}
+        }}
         [data-testid="collapsedControl"] {{
             background:var(--eor-accent) !important;
             border-radius:8px !important;
             padding:6px !important;
-            box-shadow:0 2px 8px rgba(0,0,0,0.35);
+            animation: eor-pulse-glow 2.2s ease-out infinite;
         }}
         [data-testid="collapsedControl"] svg {{ color:#0B1220 !important; fill:#0B1220 !important; }}
+        @media (prefers-reduced-motion: reduce) {{
+            [data-testid="collapsedControl"] {{ animation:none; box-shadow:0 2px 8px rgba(0,0,0,0.35); }}
+        }}
 
         /* Hide the Streamlit Community Cloud "View source on GitHub" button.
            This button is sent to the page by the Community Cloud host
@@ -303,6 +348,29 @@ def apply_language_css(language: str) -> None:
         </style>""",
         unsafe_allow_html=True,
     )
+
+
+def plausibility_warnings(permeability: float, porosity_pct: float, field_units: Dict[str, float]) -> List[str]:
+    """Flag inputs well outside typical conventional-reservoir engineering
+    ranges. These are general plausibility bounds, not the exact min/max of
+    the ML models' training data (which isn't available to check directly) -
+    the point is to catch likely typos or unit-entry mistakes, not to make a
+    precise in-distribution/out-of-distribution claim about the models.
+    """
+    checks = [
+        (permeability, 0.1, 2000.0, "Permeability", "mD"),
+        (porosity_pct, 1.0, 40.0, "Porosity", "%"),
+        (field_units["API_Gravity"], 10.0, 55.0, "API Gravity", "°API"),
+        (field_units["Oil_Viscosity"], 0.01, 50.0, "Oil Viscosity", "cP"),
+        (field_units["Temperature"], 50.0, 356.0, "Temperature", "°F"),
+        (field_units["Depth_ft"], 300.0, 20000.0, "Depth", "ft"),
+        (field_units["Pressure_psi"], 70.0, 10000.0, "Pressure", "psi"),
+    ]
+    warnings_out = []
+    for value, lo, hi, label, unit in checks:
+        if value < lo or value > hi:
+            warnings_out.append(f"{label} ({value:.2f} {unit}) is well outside the typical conventional-reservoir range ({lo:g}-{hi:g} {unit}) - double-check the value and its unit.")
+    return warnings_out
 
 
 def status_pill_html(status: str) -> str:
@@ -912,20 +980,23 @@ def predict_ml_system(user_input: Dict[str, Any]) -> Dict[str, Any]:
 # 7. Dashboard visuals
 # ---------------------------------------------------------------------------
 
-def plot_probability_chart(probabilities: Dict[str, float], title: str) -> go.Figure:
+def plot_probability_chart(probabilities: Dict[str, float], title: str = "") -> go.Figure:
+    # No in-chart title: the markdown header placed just above this chart
+    # (e.g. the model name) already states it, so repeating it here would
+    # just be visual noise. The "title" argument is kept for compatibility
+    # with any other caller, but is intentionally not rendered.
     labels = list(probabilities.keys())
     values = list(probabilities.values())
     fig = go.Figure(data=[go.Bar(x=labels, y=values, marker_color="#2E8B6B")])
     fig.update_layout(
-        title=title,
         xaxis_title="EOR Method",
         yaxis_title="Probability",
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="IBM Plex Sans, sans-serif", color="#E8EDF4"),
-        height=420,
-        margin=dict(l=20, r=20, t=40, b=80),
+        height=400,
+        margin=dict(l=20, r=20, t=10, b=80),
     )
     return fig
 
@@ -947,9 +1018,18 @@ def render_kpi_cards(inputs: Dict[str, Any]) -> None:
     fzi = rqi / (phi_z + 1e-6)
 
     kpi_cols = st.columns(3)
-    kpi_cols[0].metric(":material/speed: Mobility Proxy", f"{mobility:.3f}")
-    kpi_cols[1].metric(":material/water_drop: RQI", f"{rqi:.3f}")
-    kpi_cols[2].metric(":material/grain: FZI", f"{fzi:.3f}")
+    kpi_cols[0].metric(
+        ":material/speed: Mobility Proxy", f"{mobility:.3f}",
+        help="Ratio describing how easily displacing fluid moves relative to the oil in place. Higher values generally favor miscible/gas methods; lower values favor waterflooding or chemical EOR.",
+    )
+    kpi_cols[1].metric(
+        ":material/water_drop: RQI", f"{rqi:.3f}",
+        help="Rock Quality Index: a permeability-porosity proxy for flow-path quality within the reservoir rock. Higher values indicate better-connected, higher-quality flow paths.",
+    )
+    kpi_cols[2].metric(
+        ":material/grain: FZI", f"{fzi:.3f}",
+        help="Flow Zone Indicator: groups rock into hydraulic units with similar pore-throat characteristics. Used alongside RQI to characterize reservoir quality and heterogeneity.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -977,7 +1057,8 @@ def main() -> None:
         unsafe_allow_html=True,
     )
     st.info(
-        "Use the panel on the left to enter reservoir data (tap the "
+        "Showing a worked example (Project 1, Trias S1 sandstone). Use the "
+        "panel on the left to enter your own reservoir data (tap the "
         ":material/chevron_right: arrow, top-left, if it's closed).",
         icon=":material/edit_note:",
     )
@@ -1035,6 +1116,9 @@ def main() -> None:
         "API_Gravity": field_units["API_Gravity"], "Depth_ft": field_units["Depth_ft"], "Pressure_psi": field_units["Pressure_psi"],
     }
 
+    for warning_text in plausibility_warnings(permeability, porosity_pct, field_units):
+        st.warning(warning_text, icon=":material/warning:")
+
     st.subheader(f":material/analytics: {t(language, 'proxies')}")
     if project_name or producing_horizon:
         st.caption(f"<span class='eor-mono'>{project_name}, {producing_horizon} ({lithology})</span>", unsafe_allow_html=True)
@@ -1050,7 +1134,8 @@ def main() -> None:
     )
 
     classical_results = classical_screening(lithology, permeability, normalize_percentage_to_fraction(porosity_pct), field_units["Oil_Viscosity"], field_units["Temperature"], field_units["API_Gravity"], field_units["Depth_ft"], field_units["Pressure_psi"], mmp_psi if mmp_psi > 0 else None)
-    model_result = predict_ml_system(input_data)
+    with st.spinner("Running screening models..."):
+        model_result = predict_ml_system(input_data)
     tab1, tab2, tab3 = st.tabs([
         f":material/rule: {t(language, 'tab1_short')}",
         f":material/science: {t(language, 'tab2_short')}",
@@ -1063,16 +1148,17 @@ def main() -> None:
         st.info(t(language, "engine1_disclaimer"), icon=":material/info:")
         for method_name, result in classical_results.items():
             status = result["status"]
-            st.markdown(
-                f"<div class='eor-status-row'>"
-                f"<span class='eor-status-name'>{method_name}</span>{status_pill_html(status)}"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-            if result["violations"]:
-                st.warning(f"{t(language, 'violations')}: {', '.join(result['violations'])}", icon=":material/warning:")
-            with st.expander(f"{t(language, 'method_details')}: {method_name}", icon=":material/list_alt:"):
-                st.dataframe(pd.DataFrame([{"Parameter": k, "Status": v} for k, v in result["parameters"].items()]), hide_index=True, use_container_width=True)
+            with st.container(border=True):
+                st.markdown(
+                    f"<div class='eor-status-row eor-status-row-flush'>"
+                    f"<span class='eor-status-name'>{method_name}</span>{status_pill_html(status)}"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+                if result["violations"]:
+                    st.warning(f"{t(language, 'violations')}: {', '.join(result['violations'])}", icon=":material/warning:")
+                with st.expander(f"{t(language, 'method_details')}", icon=":material/list_alt:"):
+                    st.dataframe(pd.DataFrame([{"Parameter": k, "Status": v} for k, v in result["parameters"].items()]), hide_index=True, use_container_width=True)
 
     with tab2:
         st.subheader(t(language, "ml"))
@@ -1095,6 +1181,7 @@ def main() -> None:
 
     with tab3:
         st.subheader(t(language, "consensus"))
+        st.caption(t(language, "screening_caption"))
         results = model_result["results"]
 
         # Engine B now feeds the consensus/combined result from Random
@@ -1111,7 +1198,7 @@ def main() -> None:
         # Combined result (Engine A rule status applied to Engine B
         # probabilities) is the headline number, so it's shown first.
         st.markdown(f"##### :material/stacked_bar_chart: {t(language, 'combined_result')}")
-        st.caption("Engine A rule status is now applied to the standalone Engine B probabilities.")
+        st.caption("Engine A rule status is now applied to the standalone Engine B probabilities. Bars are scaled relative to the top-ranked method; the % label shows the real score.")
         combined_rank = []
         for method_name in EOR_CLASSES:
             status = classical_results[method_name]["status"]
@@ -1119,27 +1206,35 @@ def main() -> None:
             combined_rank.append((method_name, consensus_scores[method_name] * weight, status))
         combined_rank.sort(key=lambda item: item[1], reverse=True)
         bar_color = {"PASS": "#37B679", "MARGINAL": "#E8A33D", "FAIL": "#E5484D"}
-        for method_name, score, status in combined_rank:
-            color = bar_color[status]
-            st.markdown(
-                f"<div class='eor-combined-row'>"
-                f"<span class='eor-combined-name'>{method_name}</span>"
-                f"{status_pill_html(status)}"
-                f"<div class='eor-combined-bar-wrap'><div class='eor-combined-bar-fill' "
-                f"style='width:{score * 100:.1f}%;background:{color};'></div></div>"
-                f"<span class='eor-combined-pct eor-mono'>{score * 100:.1f}%</span>"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
+        # Bars are scaled relative to the top-ranked score, not to an
+        # absolute 0-100% track. With an absolute scale, scores like
+        # 16%/6%/2% all render as thin slivers that are hard to tell apart;
+        # relative scaling makes the ranking readable at a glance, while the
+        # printed percentage label still shows the real, un-rescaled number.
+        top_score = combined_rank[0][1] if combined_rank and combined_rank[0][1] > 0 else 1.0
+        with st.container(border=True):
+            for method_name, score, status in combined_rank:
+                color = bar_color[status]
+                bar_width_pct = (score / top_score) * 100.0
+                st.markdown(
+                    f"<div class='eor-combined-row'>"
+                    f"<span class='eor-combined-name'>{method_name}</span>"
+                    f"{status_pill_html(status)}"
+                    f"<div class='eor-combined-bar-wrap'><div class='eor-combined-bar-fill' "
+                    f"style='width:{bar_width_pct:.1f}%;background:{color};'></div></div>"
+                    f"<span class='eor-combined-pct eor-mono'>{score * 100:.1f}%</span>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
         fig = go.Figure(data=[go.Bar(
             x=[x[0] for x in combined_rank], y=[x[1] for x in combined_rank],
             marker_color=[bar_color[x[2]] for x in combined_rank],
         )])
         fig.update_layout(
-            title=t(language, "combined"), xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"),
+            xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"),
             template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             font=dict(family="IBM Plex Sans, sans-serif", color="#E8EDF4"),
-            height=420, margin=dict(l=20, r=20, t=40, b=100),
+            height=400, margin=dict(l=20, r=20, t=10, b=100),
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -1160,10 +1255,10 @@ def main() -> None:
         )
         ml_only_fig = go.Figure(data=[go.Bar(x=[item[0] for item in ml_only_rank], y=[item[1] for item in ml_only_rank], marker_color="#3E8FD0")])
         ml_only_fig.update_layout(
-            title=t(language, "ml_only_result"), xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"),
+            xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"),
             template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             font=dict(family="IBM Plex Sans, sans-serif", color="#E8EDF4"),
-            height=380, margin=dict(l=20, r=20, t=40, b=100),
+            height=360, margin=dict(l=20, r=20, t=10, b=100),
         )
         st.plotly_chart(ml_only_fig, use_container_width=True)
 
