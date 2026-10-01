@@ -1080,7 +1080,15 @@ def main() -> None:
             st.success("Real ensemble models trained from Screening_Original.xlsx are active.", icon=":material/check_circle:")
         elif model_result.get("warning"):
             st.warning(t(language, "fallback_warning"), icon=":material/warning:")
-        for model_name, info in model_result["results"].items():
+
+        # Display order only (Random Forest first); does not affect the
+        # consensus/combined averaging in the next tab, which already
+        # iterates over .values() regardless of dict order.
+        display_order = sorted(
+            model_result["results"].items(),
+            key=lambda item: 0 if "random forest" in item[0].lower() else 1,
+        )
+        for model_name, info in display_order:
             st.markdown(f"##### :material/model_training: {model_name}")
             st.metric(t(language, "predicted"), info["prediction"])
             st.plotly_chart(plot_probability_chart(info["probabilities"], f"{t(language, 'probability')} - {model_name}"), use_container_width=True)
@@ -1088,7 +1096,17 @@ def main() -> None:
     with tab3:
         st.subheader(t(language, "consensus"))
         results = model_result["results"]
-        consensus_scores = {method: float(np.mean([item["probabilities"].get(method, 0.0) for item in results.values()])) for method in EOR_CLASSES}
+
+        # Engine B now feeds the consensus/combined result from Random
+        # Forest alone (more stable than averaging across all models),
+        # rather than the mean across LightGBM + XGBoost + Random Forest.
+        rf_key = next((name for name in results if "random forest" in name.lower()), None)
+        if rf_key is not None:
+            consensus_scores = {method: float(results[rf_key]["probabilities"].get(method, 0.0)) for method in EOR_CLASSES}
+        else:
+            # Fallback/heuristic mode has no "Random Forest" entry; average
+            # over whatever single engine is available instead of failing.
+            consensus_scores = {method: float(np.mean([item["probabilities"].get(method, 0.0) for item in results.values()])) for method in EOR_CLASSES}
 
         # Combined result (Engine A rule status applied to Engine B
         # probabilities) is the headline number, so it's shown first.
@@ -1130,7 +1148,7 @@ def main() -> None:
         # Engine B on its own, before Engine A's rule weighting, shown second
         # as supporting detail behind the headline combined result above.
         st.markdown(f"##### :material/query_stats: {t(language, 'ml_only_result')}")
-        st.caption("These probabilities come from Engine B only; Engine A has not modified them.")
+        st.caption("These probabilities come from the Random Forest model only (Engine B); Engine A has not modified them.")
         ml_only_rank = sorted(consensus_scores.items(), key=lambda item: item[1], reverse=True)
         st.dataframe(
             pd.DataFrame([
