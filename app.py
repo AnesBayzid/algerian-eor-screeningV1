@@ -12,6 +12,7 @@ models locally; heuristic placeholder output is reserved for training failure.
 
 from __future__ import annotations
 
+import base64
 import json
 import math
 import os
@@ -195,6 +196,15 @@ def t(language: str, key: str) -> str:
     return TRANSLATIONS.get(language, TRANSLATIONS["en"]).get(key, key)
 
 
+@st.cache_data
+def load_flag_image_base64(filename: str = "Algerian PNG.png") -> str | None:
+    """Load and cache the repository's real rectangular Algerian flag PNG."""
+    image_path = Path(__file__).resolve().parent / filename
+    if not image_path.is_file():
+        return None
+    return base64.b64encode(image_path.read_bytes()).decode("ascii")
+
+
 def apply_language_css(language: str) -> None:
     direction = "rtl" if language == "ar" else "ltr"
     st.markdown(
@@ -228,10 +238,7 @@ def apply_language_css(language: str) -> None:
             border-bottom:1px solid var(--eor-border);
         }}
         .eor-brand {{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }}
-        .dz-flag {{ width:44px; height:30px; position:relative; overflow:hidden; flex:0 0 44px; border:1px solid var(--eor-border); border-radius:2px; background:linear-gradient(90deg,#006233 0 50%,#fff 50%); }}
-        .dz-flag-crescent {{ position:absolute; width:16px; height:16px; left:14px; top:6px; border-radius:50%; background:#d21034; }}
-        .dz-flag-crescent:after {{ content:''; position:absolute; width:13px; height:13px; left:5px; top:-3px; border-radius:50%; background:#fff; }}
-        .dz-flag-star {{ position:absolute; left:24px; top:7px; color:#d21034; font-size:11px; line-height:1; }}
+        .dz-flag-img {{ width:48px; height:32px; aspect-ratio:3 / 2; object-fit:contain; flex:0 0 48px; border:1px solid var(--eor-border); border-radius:0; display:block; }}
         .eor-brand h1 {{ margin:0; font-size:1.5rem; font-weight:600; letter-spacing:-0.01em; line-height:1.25; }}
         .eor-subtitle {{ color:var(--eor-text-muted); font-size:0.92rem; margin:0; }}
 
@@ -1020,9 +1027,11 @@ def main() -> None:
     language = LANGUAGES[language_name]
     apply_language_css(language)
 
+    flag_base64 = load_flag_image_base64()
     flag_html = (
-        "<div class='dz-flag' role='img' aria-label='Algeria flag'>"
-        "<span class='dz-flag-crescent'></span><span class='dz-flag-star'>★</span></div>"
+        f"<img class='dz-flag-img' src='data:image/png;base64,{flag_base64}' alt='Algerian flag'>"
+        if flag_base64
+        else "<span role='img' aria-label='Algerian flag'>🇩🇿</span>"
     )
     st.markdown(
         f"""<div class='eor-header'>
