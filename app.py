@@ -261,6 +261,7 @@ def apply_language_css(language: str) -> None:
 
         /* ---- Numeric / mono utility -------------------------------------- */
         .eor-mono {{ font-family:var(--eor-mono); }}
+        .eor-caption-like {{ color:var(--eor-text-muted); font-size:0.85rem; margin:2px 0 10px 0; }}
 
         /* ---- Mobile tightening -------------------------------------------- */
         @media (max-width: 640px) {{
@@ -268,6 +269,9 @@ def apply_language_css(language: str) -> None:
             .eor-subtitle {{ font-size:0.82rem; }}
             .eor-combined-name {{ flex-basis:100%; }}
             .eor-combined-pct {{ flex:0 0 auto; }}
+            /* Technical unit-conversion note: useful on a wide desktop
+               screen, just clutter on a phone - hidden below this width. */
+            .eor-desktop-only {{ display:none !important; }}
         }}
 
         /* ---- Make the sidebar open/close toggle obvious, not a faint arrow ---- */
@@ -304,14 +308,16 @@ def apply_language_css(language: str) -> None:
 def status_pill_html(status: str) -> str:
     """Return a small colored pill span for PASS / MARGINAL / FAIL.
 
-    Uses Streamlit's own ":material/xxx:" markdown shortcode for the icon
-    (rather than a hand-guessed CSS class/font name) so the icon renders
-    through Streamlit's existing, correct icon pipeline; the surrounding
-    <span> only supplies the pill's background/padding/color.
+    Streamlit's ":material/xxx:" icon shortcode is only converted inside
+    Streamlit's own text elements (headers, tabs, st.info/warning/success,
+    the "icon=" argument, etc). It is documented to NOT be converted when
+    unsafe_allow_html=True is used, so it must not be used inside this raw
+    HTML string - it would just show as literal text. Plain Unicode
+    characters are used here instead, which render everywhere reliably.
     """
     key = {"PASS": "pass", "MARGINAL": "marginal", "FAIL": "fail"}.get(status, "pass")
-    icon = {"PASS": "check_circle", "MARGINAL": "warning", "FAIL": "cancel"}.get(status, "check_circle")
-    return f"<span class='eor-pill {key}'>:material/{icon}: {status}</span>"
+    symbol = {"PASS": "✓", "MARGINAL": "⚠", "FAIL": "✕"}.get(status, "✓")
+    return f"<span class='eor-pill {key}'>{symbol} {status}</span>"
 
 
 def convert_to_field_units(depth: float, depth_unit: str, pressure: float, pressure_unit: str,
@@ -983,7 +989,7 @@ def main() -> None:
             st.dataframe(GEOLOGICAL_LITHOLOGY_GUIDE, hide_index=True, use_container_width=True)
 
         st.markdown(
-            "<div class='eor-section-label'>:material/folder: Project</div>",
+            "<div class='eor-section-label'>Project</div>",
             unsafe_allow_html=True,
         )
         project_cols = st.columns(2)
@@ -991,7 +997,7 @@ def main() -> None:
         producing_horizon = project_cols[1].text_input(t(language, "horizon"), value="Trias S1")
 
         st.markdown(
-            "<div class='eor-section-label'>:material/layers: Rock &amp; reservoir</div>",
+            "<div class='eor-section-label'>Rock &amp; reservoir</div>",
             unsafe_allow_html=True,
         )
         lithology_options = ["Carbonate", "Carbonate / Dolomite", "Carbonate / Limestone", "Sandstone", "Sandstone / Quartzite", "Mixed Clastic", "Unknown"]
@@ -1001,7 +1007,7 @@ def main() -> None:
         porosity_pct = st.number_input(f"{t(language, 'porosity')} (%)", value=9.3, min_value=0.1, max_value=60.0, step=0.1)
 
         st.markdown(
-            "<div class='eor-section-label'>:material/height: Depth &amp; pressure</div>",
+            "<div class='eor-section-label'>Depth &amp; pressure</div>",
             unsafe_allow_html=True,
         )
         depth_unit = st.selectbox(f"{t(language, 'depth')} unit", ["m", "ft"])
@@ -1012,7 +1018,7 @@ def main() -> None:
         mmp_psi = mmp if pressure_unit == "psi" else mmp * {"bar": 14.5037738, "MPa": 145.037738}.get(pressure_unit, 1.0)
 
         st.markdown(
-            "<div class='eor-section-label'>:material/water_drop: Fluid &amp; thermal</div>",
+            "<div class='eor-section-label'>Fluid &amp; thermal</div>",
             unsafe_allow_html=True,
         )
         temperature_unit = st.selectbox(f"{t(language, 'temperature')} unit", ["°C", "°F"])
@@ -1033,11 +1039,13 @@ def main() -> None:
     if project_name or producing_horizon:
         st.caption(f"<span class='eor-mono'>{project_name}, {producing_horizon} ({lithology})</span>", unsafe_allow_html=True)
     render_kpi_cards(input_data)
-    st.caption(
+    st.markdown(
+        f"<div class='eor-desktop-only eor-caption-like'>"
         f"{t(language, 'pressure_note')} "
         f"<span class='eor-mono'>Normalized: {field_units['Depth_ft']:.1f} ft | "
         f"{field_units['Pressure_psi']:.1f} psi | {field_units['Temperature']:.1f} °F | "
-        f"{field_units['Oil_Viscosity']:.3f} cP | {field_units['API_Gravity']:.2f} °API</span>",
+        f"{field_units['Oil_Viscosity']:.3f} cP | {field_units['API_Gravity']:.2f} °API</span>"
+        f"</div>",
         unsafe_allow_html=True,
     )
 
@@ -1082,27 +1090,8 @@ def main() -> None:
         results = model_result["results"]
         consensus_scores = {method: float(np.mean([item["probabilities"].get(method, 0.0) for item in results.values()])) for method in EOR_CLASSES}
 
-        # Display Engine B before applying any Engine A rule weighting.
-        st.markdown(f"##### :material/query_stats: {t(language, 'ml_only_result')}")
-        st.caption("These probabilities come from Engine B only; Engine A has not modified them.")
-        ml_only_rank = sorted(consensus_scores.items(), key=lambda item: item[1], reverse=True)
-        st.dataframe(
-            pd.DataFrame([
-                {"Rank": index, "EOR Method": method, t(language, "ml_mean"): f"{score:.1%}"}
-                for index, (method, score) in enumerate(ml_only_rank, start=1)
-            ]),
-            hide_index=True,
-            use_container_width=True,
-        )
-        ml_only_fig = go.Figure(data=[go.Bar(x=[item[0] for item in ml_only_rank], y=[item[1] for item in ml_only_rank], marker_color="#3E8FD0")])
-        ml_only_fig.update_layout(
-            title=t(language, "ml_only_result"), xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"),
-            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(family="IBM Plex Sans, sans-serif", color="#E8EDF4"),
-            height=380, margin=dict(l=20, r=20, t=40, b=100),
-        )
-        st.plotly_chart(ml_only_fig, use_container_width=True)
-
+        # Combined result (Engine A rule status applied to Engine B
+        # probabilities) is the headline number, so it's shown first.
         st.markdown(f"##### :material/stacked_bar_chart: {t(language, 'combined_result')}")
         st.caption("Engine A rule status is now applied to the standalone Engine B probabilities.")
         combined_rank = []
@@ -1135,6 +1124,30 @@ def main() -> None:
             height=420, margin=dict(l=20, r=20, t=40, b=100),
         )
         st.plotly_chart(fig, use_container_width=True)
+
+        st.divider()
+
+        # Engine B on its own, before Engine A's rule weighting, shown second
+        # as supporting detail behind the headline combined result above.
+        st.markdown(f"##### :material/query_stats: {t(language, 'ml_only_result')}")
+        st.caption("These probabilities come from Engine B only; Engine A has not modified them.")
+        ml_only_rank = sorted(consensus_scores.items(), key=lambda item: item[1], reverse=True)
+        st.dataframe(
+            pd.DataFrame([
+                {"Rank": index, "EOR Method": method, t(language, "ml_mean"): f"{score:.1%}"}
+                for index, (method, score) in enumerate(ml_only_rank, start=1)
+            ]),
+            hide_index=True,
+            use_container_width=True,
+        )
+        ml_only_fig = go.Figure(data=[go.Bar(x=[item[0] for item in ml_only_rank], y=[item[1] for item in ml_only_rank], marker_color="#3E8FD0")])
+        ml_only_fig.update_layout(
+            title=t(language, "ml_only_result"), xaxis_title=t(language, "eor_method"), yaxis_title=t(language, "probability"),
+            template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="IBM Plex Sans, sans-serif", color="#E8EDF4"),
+            height=380, margin=dict(l=20, r=20, t=40, b=100),
+        )
+        st.plotly_chart(ml_only_fig, use_container_width=True)
 
 
 if __name__ == "__main__":
